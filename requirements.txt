@@ -2,3 +2,6 @@ pymupdf==1.28.2
 certifi
 transformers==5.17.0
 sentencepiece==0.2.2
+sentence-transformers==6.0.1
+torch==2.14.0
+qdrant-client==1.19.0

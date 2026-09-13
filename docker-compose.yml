@@ -1,0 +1,25 @@
+services:
+  qdrant:
+    # Pin the Qdrant version verified in local development.
+    image: qdrant/qdrant:v1.19.1
+
+    # Give the container a stable, recognizable name for local development.
+    container_name: nepal-gov-qdrant
+
+    ports:
+      # REST API and Web UI.
+      - "6333:6333"
+
+      # gRPC API for future client usage.
+      - "6334:6334"
+
+    volumes:
+      # Persist vector data across container restarts.
+      - qdrant_storage:/qdrant/storage
+
+    # Restart automatically with Docker Desktop.
+    restart: unless-stopped
+
+volumes:
+  # Docker-managed persistent storage.
+  qdrant_storage:
