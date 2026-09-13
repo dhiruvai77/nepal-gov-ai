@@ -15,19 +15,23 @@ MANIFEST_PATH = PROJECT_ROOT / "data" / "manifests" / "data_sources.csv"
 RAW_PDF_DIR = PROJECT_ROOT / "data" / "raw" / "pdf"
 OUTPUT_DIR = PROJECT_ROOT / "data" / "interim" / "extracted_pages"
 
-# This is an initial heuristic rather than a permanent OCR rule.
-# We will refine it once we test scanned English and Nepali documents.
+# Native extraction below this threshold triggers OCR fallback.
+# This is an initial heuristic that we can tune after testing more documents.
 OCR_CHARACTER_THRESHOLD = 200
+
+# OCR both English and Nepali because the project corpus is multilingual.
+OCR_LANGUAGES = "eng+nep"
+
+# Higher DPI generally improves OCR quality at the cost of processing time.
+OCR_DPI = 300
 
 
 def load_downloaded_documents() -> list[dict]:
-    """Load manifest records for documents that were downloaded successfully."""
+    """Load manifest records for documents downloaded successfully."""
 
     with MANIFEST_PATH.open("r", encoding="utf-8-sig", newline="") as file:
         reader = csv.DictReader(file)
 
-        # Parsing should only run against files that successfully completed
-        # the acquisition stage.
         documents = [
             row
             for row in reader
@@ -37,27 +41,60 @@ def load_downloaded_documents() -> list[dict]:
     return documents
 
 
+def extract_page_text(page: pymupdf.Page) -> tuple[str, str, bool]:
+    """Extract page text using native extraction with OCR fallback."""
+
+    # Native PDF text extraction is faster and usually more accurate than OCR,
+    # so it is always attempted first.
+    native_text = page.get_text("text").strip()
+
+    if len(native_text) >= OCR_CHARACTER_THRESHOLD:
+        return native_text, "native", False
+
+    try:
+        # full=True OCRs the complete page. This is appropriate for pages where
+        # native extraction yielded very little usable text.
+        text_page = page.get_textpage_ocr(
+            language=OCR_LANGUAGES,
+            dpi=OCR_DPI,
+            full=True,
+        )
+
+        ocr_text = page.get_text(
+            "text",
+            textpage=text_page,
+        ).strip()
+
+        # Use OCR output only when it improves on native extraction. This avoids
+        # replacing a small amount of valid native text with poorer OCR output.
+        if len(ocr_text) > len(native_text):
+            return ocr_text, "ocr", False
+
+        # OCR ran successfully but did not improve extraction quality.
+        return native_text, "native", True
+
+    except Exception as error:
+        # A single OCR failure should not terminate extraction for the entire
+        # document. The page remains flagged for later inspection.
+        print(f"  OCR failed on page {page.number + 1}: {error}")
+        return native_text, "native", True
+
+
 def extract_pdf_pages(pdf_path: Path) -> list[dict]:
-    """Extract native page-level text and basic quality metadata from a PDF."""
+    """Extract page-level text and quality metadata from a PDF."""
 
     pages = []
 
     with pymupdf.open(pdf_path) as document:
         for page_index, page in enumerate(document):
-            # Native extraction is always attempted before OCR because it is
-            # faster and generally cleaner for text-based PDFs.
-            text = page.get_text("text").strip()
-
-            # Pages with very little extracted text are marked for later OCR
-            # review rather than being OCRed automatically at this stage.
-            needs_ocr = len(text) < OCR_CHARACTER_THRESHOLD
+            text, extraction_method, needs_ocr_review = extract_page_text(page)
 
             page_record = {
                 "page_number": page_index + 1,
                 "text": text,
                 "character_count": len(text),
-                "extraction_method": "native",
-                "needs_ocr": needs_ocr,
+                "extraction_method": extraction_method,
+                "needs_ocr_review": needs_ocr_review,
             }
 
             pages.append(page_record)
@@ -66,7 +103,7 @@ def extract_pdf_pages(pdf_path: Path) -> list[dict]:
 
 
 def process_document(document_record: dict) -> None:
-    """Extract one downloaded document and save its page-level JSON output."""
+    """Extract one downloaded document and save page-level JSON output."""
 
     document_id = document_record["document_id"]
     local_filename = document_record["local_filename"]
@@ -80,9 +117,17 @@ def process_document(document_record: dict) -> None:
 
     pages = extract_pdf_pages(input_pdf)
 
-    # Count OCR candidates now so the pipeline exposes document quality
-    # immediately after extraction.
-    ocr_candidate_count = sum(page["needs_ocr"] for page in pages)
+    # These metrics make extraction quality visible without inspecting every
+    # page manually.
+    native_page_count = sum(
+        page["extraction_method"] == "native" for page in pages
+    )
+    ocr_page_count = sum(
+        page["extraction_method"] == "ocr" for page in pages
+    )
+    review_page_count = sum(
+        page["needs_ocr_review"] for page in pages
+    )
 
     output = {
         "document_id": document_id,
@@ -96,18 +141,21 @@ def process_document(document_record: dict) -> None:
         "source_file": local_filename,
         "file_hash": document_record["file_hash"],
         "page_count": len(pages),
-        "ocr_candidate_count": ocr_candidate_count,
+        "native_page_count": native_page_count,
+        "ocr_page_count": ocr_page_count,
+        "ocr_review_page_count": review_page_count,
         "pages": pages,
     }
 
-    # UTF-8 with ensure_ascii=False preserves Nepali Unicode text when we begin
-    # processing Nepali-language documents.
+    # UTF-8 and ensure_ascii=False preserve Nepali Unicode characters.
     with output_file.open("w", encoding="utf-8") as file:
         json.dump(output, file, ensure_ascii=False, indent=2)
 
     print(f"Processed: {document_id}")
     print(f"  Pages: {len(pages)}")
-    print(f"  OCR candidates: {ocr_candidate_count}")
+    print(f"  Native pages: {native_page_count}")
+    print(f"  OCR pages: {ocr_page_count}")
+    print(f"  OCR review pages: {review_page_count}")
     print(f"  Saved to: {output_file}")
 
 
