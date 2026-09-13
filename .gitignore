@@ -19,3 +19,11 @@ __pycache__/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Raw and generated project data
+data/raw/
+data/interim/
+data/processed/
+
+# Keep manifests under version control.
+# data/manifests/ is intentionally NOT ignored.
