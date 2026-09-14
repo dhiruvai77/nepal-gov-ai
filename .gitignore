@@ -30,3 +30,6 @@ data/processed/
 
 # Temporary manual retrieval-annotation inspection outputs.
 annotation_candidates*.txt
+
+# Temporary dense-retrieval diagnostic outputs.
+dense_failure_content*.txt
