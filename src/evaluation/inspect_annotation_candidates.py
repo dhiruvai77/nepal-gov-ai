@@ -19,6 +19,9 @@ class AnnotationQuery:
 # The goal is to discover candidate evidence for manual annotation, not to
 # measure production retrieval performance.
 QUESTIONS = [
+    # -------------------------------------------------------------------------
+    # English -> English
+    # -------------------------------------------------------------------------
     AnnotationQuery(
         question_id="en_en_007",
         # Use terminology likely to appear in the constitutional provision so
@@ -74,7 +77,9 @@ QUESTIONS = [
         document_id="budget_speech_2025_26_en",
     ),
 
-    # Nepali -> Nepali annotation queries.
+    # -------------------------------------------------------------------------
+    # Nepali -> Nepali
+    # -------------------------------------------------------------------------
     AnnotationQuery(
         question_id="ne_ne_001",
         # Search for literacy indicators in the Nepali Economic Survey.
@@ -95,8 +100,8 @@ QUESTIONS = [
     ),
     AnnotationQuery(
         question_id="ne_ne_004",
-        # Use wording aimed at the overall national GDP growth estimate rather
-        # than sector-specific contributions to GDP and sector growth rates.
+        # Use wording aimed at national/sectoral GDP evidence rather than
+        # loosely matching any occurrence of economic-growth terminology.
         query=(
             "नेपालको आर्थिक वृद्धिदर चालु आर्थिक वर्ष २०८१/८२ "
             "कुल गार्हस्थ्य उत्पादन वास्तविक आर्थिक वृद्धि अनुमान"
@@ -115,26 +120,81 @@ QUESTIONS = [
         query="रोजगारी बेरोजगारी श्रम रोजगार जनशक्ति",
         document_id="economic_survey_2081_82_ne",
     ),
+
+    # -------------------------------------------------------------------------
+    # English -> Nepali
+    # -------------------------------------------------------------------------
+    AnnotationQuery(
+        question_id="en_ne_001",
+        # Cross-lingual test: English query against Nepali literacy evidence.
+        query="What does the Economic Survey report about literacy rates in Nepal?",
+        document_id="economic_survey_2081_82_ne",
+    ),
+    AnnotationQuery(
+        question_id="en_ne_002",
+        # Cross-lingual test for school and student statistics.
+        query=(
+            "What does the Economic Survey report about schools "
+            "and student numbers?"
+        ),
+        document_id="economic_survey_2081_82_ne",
+    ),
+    AnnotationQuery(
+        question_id="en_ne_003",
+        # Cross-lingual test for SEE examination results.
+        query=(
+            "What does the Economic Survey report about "
+            "the SEE examination results?"
+        ),
+        document_id="economic_survey_2081_82_ne",
+    ),
+    AnnotationQuery(
+        question_id="en_ne_004",
+        # Cross-lingual test for sectoral output growth and GDP composition.
+        query=(
+            "What does the Economic Survey report about agricultural and "
+            "non-agricultural growth and sector contributions to GDP?"
+        ),
+        document_id="economic_survey_2081_82_ne",
+    ),
+    AnnotationQuery(
+        question_id="en_ne_005",
+        # Cross-lingual test for health institutions and service indicators.
+        query=(
+            "What does the Economic Survey report about health services "
+            "and health institutions in Nepal?"
+        ),
+        document_id="economic_survey_2081_82_ne",
+    ),
+    AnnotationQuery(
+        question_id="en_ne_006",
+        # Cross-lingual test for unemployment and employment programmes.
+        query=(
+            "What does the Economic Survey report about unemployment "
+            "and employment programmes?"
+        ),
+        document_id="economic_survey_2081_82_ne",
+    ),
 ]
 
 
 def detect_target_language(question_id: str) -> str:
     """Infer the target corpus language from the evaluation question ID."""
 
-    # Evaluation IDs follow the pattern query_language_target_language_NNN.
-    # For the current benchmark:
-    # - en_en_* targets English documents
-    # - ne_ne_* targets Nepali documents
+    # Evaluation IDs follow:
+    # query_language_target_language_NNN
     #
-    # We use the second language component because future cross-lingual IDs
-    # such as en_ne_* must search Nepali documents even though the query itself
-    # is written in English.
+    # Examples:
+    # en_en_001 -> English query, English target
+    # ne_ne_001 -> Nepali query, Nepali target
+    # en_ne_001 -> English query, Nepali target
+    # ne_en_001 -> Nepali query, English target
     parts = question_id.split("_")
 
     if len(parts) < 3:
         raise ValueError(
             f"Unexpected question_id format: {question_id!r}. "
-            "Expected a value such as 'en_en_001' or 'ne_ne_001'."
+            "Expected a value such as 'en_en_001' or 'en_ne_001'."
         )
 
     target_language = parts[1]
@@ -160,13 +220,16 @@ def main() -> None:
         print(f"{item.question_id}: {item.query}")
         print("=" * 90)
 
-        # Derive the target document language from the question ID rather than
-        # hard-coding English. This also prepares the helper for later
-        # cross-lingual IDs such as en_ne_* and ne_en_*.
+        # Derive the target document language from the question ID. This is
+        # important for cross-lingual cases such as en_ne_*, where the query is
+        # English but the evidence must come from Nepali documents.
         target_language = detect_target_language(item.question_id)
 
         results = run_hybrid_retrieval(
             item.query,
+            # Annotation discovery deliberately searches deeper than the
+            # production evaluation cutoff so we can manually inspect evidence
+            # that may be relevant but poorly ranked.
             top_k=15,
             filters={
                 "language": target_language,
