@@ -27,3 +27,6 @@ data/processed/
 
 # Keep manifests under version control.
 # data/manifests/ is intentionally NOT ignored.
+
+# Temporary manual retrieval-annotation inspection outputs.
+annotation_candidates*.txt
