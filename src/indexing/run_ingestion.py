@@ -1,13 +1,16 @@
-"""Command-line entry point for NepalGov AI dense-vector ingestion.
+"""Command-line entry point for NepalGov AI production ingestion.
 
 This module wires together the processed chunk loader, embedding service, and
-Qdrant client. The actual embedding, validation, and upsert logic remains in
-the dedicated service and ingestion modules.
+Qdrant client. The actual embedding, validation, BM25 construction, and upsert
+logic remain in the dedicated embedding and indexing modules.
 """
 
 from qdrant_client import QdrantClient
 
-from src.embeddings.e5_service import E5EmbeddingService
+from src.embeddings.base import EmbeddingService
+from src.embeddings.hf_e5_service import (
+    HuggingFaceE5EmbeddingService,
+)
 from src.indexing.qdrant_ingestion import (
     COLLECTION_NAME,
     QDRANT_URL,
@@ -21,15 +24,21 @@ DEFAULT_BATCH_SIZE = 64
 
 
 def run_ingestion(
-    embedding_service: E5EmbeddingService | None = None,
+    embedding_service: EmbeddingService | None = None,
     client: QdrantClient | None = None,
     batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> int:
-    """Run the production dense-vector ingestion pipeline.
+    """Run the production dense + BM25 ingestion pipeline.
 
     Dependency injection is supported so tests can provide fake embedding
-    services and Qdrant clients without loading PyTorch or requiring a running
-    Qdrant server.
+    services and Qdrant clients without making network requests or requiring
+    a running Qdrant server.
+
+    Hosted Hugging Face E5 inference is currently the default production
+    embedding backend because the local Windows environment cannot load the
+    PyTorch runtime under Smart App Control. The pipeline still depends only
+    on the generic EmbeddingService interface, so this default can be changed
+    later without modifying the ingestion layer.
     """
 
     if batch_size <= 0:
@@ -37,22 +46,25 @@ def run_ingestion(
             "batch_size must be greater than zero."
         )
 
-    # Construct production dependencies only when callers do not provide them.
-    # This keeps the entry point usable in tests despite the current Windows
-    # restriction that prevents the local PyTorch runtime from loading.
+    # Construct production dependencies only when callers do not inject them.
+    # Hosted E5 avoids the current local PyTorch DLL restriction while keeping
+    # the same multilingual-e5-large-instruct model and 1024-vector contract.
     active_embedding_service = (
         embedding_service
         if embedding_service is not None
-        else E5EmbeddingService()
+        else HuggingFaceE5EmbeddingService()
     )
 
     active_client = (
         client
         if client is not None
-        else QdrantClient(url=QDRANT_URL)
+        else QdrantClient(
+            url=QDRANT_URL
+        )
     )
 
-    # Ensure the dense collection exists before attempting any upserts.
+    # Ensure the collection contains the required dense schema, BM25 sparse
+    # schema, and payload indexes before attempting production upserts.
     ensure_collection(
         active_client
     )
