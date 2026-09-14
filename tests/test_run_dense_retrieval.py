@@ -7,7 +7,9 @@ from src.embeddings.base import (
     EmbeddingService,
     EmbeddingVector,
 )
-from src.retrieval.dense_retriever import RetrievalResult
+from src.retrieval.dense_retriever import (
+    RetrievalResult,
+)
 from src.retrieval.run_dense_retrieval import (
     print_results,
     run_dense_retrieval,
@@ -17,11 +19,11 @@ from src.retrieval.run_dense_retrieval import (
 class FakeEmbeddingService(
     EmbeddingService
 ):
-    """Minimal deterministic embedding provider for orchestration tests."""
+    """Deterministic embedding provider for orchestration tests."""
 
     @property
     def dimension(self) -> int:
-        """Return a small vector size suitable for tests."""
+        """Return a small test-only embedding dimension."""
 
         return 3
 
@@ -29,7 +31,7 @@ class FakeEmbeddingService(
         self,
         texts: Sequence[str],
     ) -> list[EmbeddingVector]:
-        """Return valid passage vectors for interface completeness."""
+        """Return deterministic passage vectors."""
 
         return [
             [1.0, 0.0, 0.0]
@@ -40,13 +42,17 @@ class FakeEmbeddingService(
         self,
         query: str,
     ) -> EmbeddingVector:
-        """Return one deterministic query embedding."""
+        """Return one deterministic query vector."""
 
-        return [0.8, 0.1, 0.1]
+        return [
+            0.8,
+            0.1,
+            0.1,
+        ]
 
 
 def sample_result() -> RetrievalResult:
-    """Return one normalized retrieval result for output tests."""
+    """Build one normalized result for orchestration/output tests."""
 
     return RetrievalResult(
         point_id="930a4fc2-1d87-58c8-b579-89313cf1dc00",
@@ -60,7 +66,8 @@ def sample_result() -> RetrievalResult:
         page_end=13,
         source_url="https://example.gov.np/constitution",
         chunk_text=(
-            "Every person shall have the right to live with dignity."
+            "Every person shall have the right "
+            "to live with dignity."
         ),
         category="constitution_law",
         document_type="constitution",
@@ -73,7 +80,9 @@ def sample_result() -> RetrievalResult:
 def test_run_dense_retrieval_wires_dependencies() -> None:
     """The orchestration layer should construct and call DenseRetriever."""
 
-    embedding_service = FakeEmbeddingService()
+    embedding_service = (
+        FakeEmbeddingService()
+    )
     client = Mock()
     expected_results = [
         sample_result(),
@@ -116,15 +125,18 @@ def test_run_dense_retrieval_wires_dependencies() -> None:
 
 
 def test_run_dense_retrieval_uses_supplied_dependencies() -> None:
-    """Injected dependencies should avoid production constructors."""
+    """Injected dependencies must bypass production constructors."""
 
-    embedding_service = FakeEmbeddingService()
+    embedding_service = (
+        FakeEmbeddingService()
+    )
     client = Mock()
 
     with (
         patch(
-            "src.retrieval.run_dense_retrieval.E5EmbeddingService"
-        ) as e5_constructor_mock,
+            "src.retrieval.run_dense_retrieval."
+            "HuggingFaceE5EmbeddingService"
+        ) as embedding_constructor_mock,
         patch(
             "src.retrieval.run_dense_retrieval.QdrantClient"
         ) as qdrant_constructor_mock,
@@ -140,20 +152,53 @@ def test_run_dense_retrieval_uses_supplied_dependencies() -> None:
             client=client,
         )
 
-    e5_constructor_mock.assert_not_called()
+    embedding_constructor_mock.assert_not_called()
     qdrant_constructor_mock.assert_not_called()
+
+
+def test_run_dense_retrieval_uses_hosted_e5_by_default() -> None:
+    """Production dense retrieval should default to hosted multilingual E5."""
+
+    hosted_embedding = Mock()
+    client = Mock()
+
+    with (
+        patch(
+            "src.retrieval.run_dense_retrieval."
+            "HuggingFaceE5EmbeddingService",
+            return_value=hosted_embedding,
+        ) as embedding_constructor_mock,
+        patch(
+            "src.retrieval.run_dense_retrieval.DenseRetriever"
+        ) as retriever_class_mock,
+    ):
+        retriever_class_mock.return_value.retrieve.return_value = []
+
+        run_dense_retrieval(
+            query="education rights",
+            client=client,
+        )
+
+    embedding_constructor_mock.assert_called_once_with()
+
+    retriever_class_mock.assert_called_once_with(
+        client=client,
+        embedding_service=hosted_embedding,
+    )
 
 
 def test_print_results_handles_empty_results(
     capsys,
 ) -> None:
-    """Empty retrieval output should remain explicit to the user."""
+    """Empty output should remain explicit to CLI users."""
 
     print_results(
         []
     )
 
-    captured = capsys.readouterr()
+    captured = (
+        capsys.readouterr()
+    )
 
     assert (
         captured.out.strip()
@@ -164,7 +209,7 @@ def test_print_results_handles_empty_results(
 def test_print_results_includes_citation_information(
     capsys,
 ) -> None:
-    """CLI output should expose score, pages, chunk ID, and source URL."""
+    """CLI output should expose score and citation metadata."""
 
     print_results(
         [
@@ -172,11 +217,22 @@ def test_print_results_includes_citation_information(
         ]
     )
 
-    captured = capsys.readouterr()
+    captured = (
+        capsys.readouterr()
+    )
 
-    assert "score=0.9100" in captured.out
-    assert "Constitution of Nepal" in captured.out
-    assert "pages=12-13" in captured.out
+    assert (
+        "score=0.9100"
+        in captured.out
+    )
+    assert (
+        "Constitution of Nepal"
+        in captured.out
+    )
+    assert (
+        "pages=12-13"
+        in captured.out
+    )
     assert (
         "constitution_chunk_00001"
         in captured.out

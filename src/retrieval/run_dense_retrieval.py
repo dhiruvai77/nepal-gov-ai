@@ -1,13 +1,16 @@
 """Command-line entry point for dense retrieval in NepalGov AI.
 
-This module wires together the production embedding service, Qdrant client,
-and DenseRetriever. Dependency injection keeps the orchestration testable
-without requiring the local PyTorch runtime.
+This module wires together the production hosted embedding service, Qdrant
+client, and DenseRetriever. Dependency injection keeps orchestration testable
+without making network calls during unit tests.
 """
 
 from qdrant_client import QdrantClient
 
-from src.embeddings.e5_service import E5EmbeddingService
+from src.embeddings.base import EmbeddingService
+from src.embeddings.hf_e5_service import (
+    HuggingFaceE5EmbeddingService,
+)
 from src.indexing.qdrant_setup import QDRANT_URL
 from src.retrieval.dense_retriever import (
     DenseRetriever,
@@ -22,27 +25,30 @@ def run_dense_retrieval(
     query: str,
     top_k: int = DEFAULT_TOP_K,
     filters: dict[str, str] | None = None,
-    embedding_service: E5EmbeddingService | None = None,
+    embedding_service: EmbeddingService | None = None,
     client: QdrantClient | None = None,
 ) -> list[RetrievalResult]:
-    """Execute one dense retrieval request.
+    """Execute one production dense-retrieval request.
 
-    Callers may inject dependencies so tests avoid loading E5 or connecting to
-    a real Qdrant instance.
+    Dependencies can be injected by tests or future application layers. When
+    omitted, the Windows-compatible hosted E5 provider and local Qdrant service
+    are constructed automatically.
     """
 
-    # Construct production dependencies only when they are not supplied by the
-    # caller. This preserves a clean CLI path while keeping tests lightweight.
+    # Hosted E5 is the production default because Windows Smart App Control can
+    # block the native PyTorch/SciPy DLLs required by the local model runtime.
     active_embedding_service = (
         embedding_service
         if embedding_service is not None
-        else E5EmbeddingService()
+        else HuggingFaceE5EmbeddingService()
     )
 
     active_client = (
         client
         if client is not None
-        else QdrantClient(url=QDRANT_URL)
+        else QdrantClient(
+            url=QDRANT_URL
+        )
     )
 
     retriever = DenseRetriever(
@@ -60,10 +66,12 @@ def run_dense_retrieval(
 def print_results(
     results: list[RetrievalResult],
 ) -> None:
-    """Print retrieved chunks in a compact human-readable format."""
+    """Print retrieved chunks with citation-relevant metadata."""
 
     if not results:
-        print("No retrieval results found.")
+        print(
+            "No retrieval results found."
+        )
         return
 
     for rank, result in enumerate(
@@ -71,7 +79,8 @@ def print_results(
         start=1,
     ):
         print(
-            f"[{rank}] score={result.score:.4f} "
+            f"[{rank}] "
+            f"score={result.score:.4f} "
             f"title={result.title} "
             f"pages={result.page_start}-{result.page_end}"
         )
@@ -87,10 +96,8 @@ def print_results(
 
 
 def main() -> None:
-    """Run an interactive dense retrieval query from the command line."""
+    """Run one interactive dense-retrieval query."""
 
-    # A simple prompt is sufficient for the current development-stage CLI.
-    # API and Streamlit interfaces will later call the same retrieval service.
     query = input(
         "Enter a Nepal government question: "
     ).strip()
