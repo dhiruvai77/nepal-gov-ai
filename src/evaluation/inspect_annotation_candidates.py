@@ -73,7 +73,79 @@ QUESTIONS = [
         ),
         document_id="budget_speech_2025_26_en",
     ),
+
+    # Nepali -> Nepali annotation queries.
+    AnnotationQuery(
+        question_id="ne_ne_001",
+        # Search for literacy indicators in the Nepali Economic Survey.
+        query="साक्षरता दर नेपाल शिक्षा जनसंख्या",
+        document_id="economic_survey_2081_82_ne",
+    ),
+    AnnotationQuery(
+        question_id="ne_ne_002",
+        # Search for school and student statistics in the Nepali survey.
+        query="विद्यालय विद्यार्थी संख्या शिक्षा विद्यालय तह विद्यार्थी",
+        document_id="economic_survey_2081_82_ne",
+    ),
+    AnnotationQuery(
+        question_id="ne_ne_003",
+        # Search for SEE examination results and pass statistics.
+        query="एसईई परीक्षा नतिजा उत्तीर्ण विद्यार्थी परीक्षा परिणाम",
+        document_id="economic_survey_2081_82_ne",
+    ),
+    AnnotationQuery(
+        question_id="ne_ne_004",
+        # Use wording aimed at the overall national GDP growth estimate rather
+        # than sector-specific contributions to GDP and sector growth rates.
+        query=(
+            "नेपालको आर्थिक वृद्धिदर चालु आर्थिक वर्ष २०८१/८२ "
+            "कुल गार्हस्थ्य उत्पादन वास्तविक आर्थिक वृद्धि अनुमान"
+        ),
+        document_id="economic_survey_2081_82_ne",
+    ),
+    AnnotationQuery(
+        question_id="ne_ne_005",
+        # Search for health-sector indicators and public-health information.
+        query="स्वास्थ्य सेवा जनस्वास्थ्य स्वास्थ्य सूचक अस्पताल",
+        document_id="economic_survey_2081_82_ne",
+    ),
+    AnnotationQuery(
+        question_id="ne_ne_006",
+        # Search for employment and labour-market indicators.
+        query="रोजगारी बेरोजगारी श्रम रोजगार जनशक्ति",
+        document_id="economic_survey_2081_82_ne",
+    ),
 ]
+
+
+def detect_target_language(question_id: str) -> str:
+    """Infer the target corpus language from the evaluation question ID."""
+
+    # Evaluation IDs follow the pattern query_language_target_language_NNN.
+    # For the current benchmark:
+    # - en_en_* targets English documents
+    # - ne_ne_* targets Nepali documents
+    #
+    # We use the second language component because future cross-lingual IDs
+    # such as en_ne_* must search Nepali documents even though the query itself
+    # is written in English.
+    parts = question_id.split("_")
+
+    if len(parts) < 3:
+        raise ValueError(
+            f"Unexpected question_id format: {question_id!r}. "
+            "Expected a value such as 'en_en_001' or 'ne_ne_001'."
+        )
+
+    target_language = parts[1]
+
+    if target_language not in {"en", "ne"}:
+        raise ValueError(
+            f"Unsupported target language {target_language!r} "
+            f"in question_id {question_id!r}."
+        )
+
+    return target_language
 
 
 def main() -> None:
@@ -88,11 +160,16 @@ def main() -> None:
         print(f"{item.question_id}: {item.query}")
         print("=" * 90)
 
+        # Derive the target document language from the question ID rather than
+        # hard-coding English. This also prepares the helper for later
+        # cross-lingual IDs such as en_ne_* and ne_en_*.
+        target_language = detect_target_language(item.question_id)
+
         results = run_hybrid_retrieval(
             item.query,
-            top_k=8,
+            top_k=15,
             filters={
-                "language": "en",
+                "language": target_language,
                 "document_id": item.document_id,
             },
         )
