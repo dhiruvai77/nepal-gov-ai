@@ -1,8 +1,8 @@
-"""Production Qdrant ingestion utilities for NepalGov AI.
+"""Production ingestion utilities for NepalGov AI.
 
-This module converts processed document chunks into Qdrant points. It depends
-on the generic EmbeddingService interface rather than directly on E5, which
-keeps ingestion independent from the model runtime.
+This module loads processed document chunks, generates dense embeddings through
+the generic EmbeddingService interface, attaches Qdrant's BM25 sparse document
+representation, and upserts both representations with retrieval metadata.
 """
 
 import json
@@ -11,28 +11,41 @@ from pathlib import Path
 from typing import Any
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct
+from qdrant_client.models import (
+    Document,
+    PointStruct,
+)
 
 from src.embeddings.base import EmbeddingService
+from src.indexing.qdrant_setup import (
+    COLLECTION_NAME,
+    DENSE_VECTOR_NAME,
+    SPARSE_VECTOR_NAME,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CHUNKS_DIR = PROJECT_ROOT / "data" / "processed" / "child_chunks"
+
+CHUNKS_DIR = (
+    PROJECT_ROOT
+    / "data"
+    / "processed"
+    / "child_chunks"
+)
 
 QDRANT_URL = "http://localhost:6333"
-COLLECTION_NAME = "nepal_gov_documents"
-DENSE_VECTOR_NAME = "dense"
 
-# UUID5 gives every chunk a deterministic Qdrant-compatible identifier.
-# Using a fixed namespace means the same chunk_id always resolves to the same
-# point ID across machines and repeated indexing runs.
+# Qdrant sparse model used for BM25-style indexing and retrieval.
+BM25_MODEL = "Qdrant/bm25"
+
+# A fixed UUID namespace makes point IDs deterministic across repeated ingestion
+# runs. Re-ingesting the same chunk therefore replaces the same Qdrant point
+# instead of creating duplicates.
 POINT_ID_NAMESPACE = uuid.UUID(
     "b96804e8-b3e4-4e92-b6bb-e32a18576851"
 )
 
-# Chunk identity and citation fields are required before data is allowed into
-# the production vector collection.
-REQUIRED_CHUNK_FIELDS = {
+REQUIRED_CHUNK_FIELDS = (
     "chunk_id",
     "document_id",
     "title",
@@ -43,21 +56,21 @@ REQUIRED_CHUNK_FIELDS = {
     "source_url",
     "chunk_text",
     "token_count",
-}
+)
 
 
-def stable_point_id(chunk_id: str) -> str:
-    """Create a deterministic UUID point ID from a chunk identifier."""
+def stable_point_id(
+    chunk_id: str,
+) -> str:
+    """Create a deterministic Qdrant-compatible UUID for one chunk."""
 
     clean_chunk_id = chunk_id.strip()
 
     if not clean_chunk_id:
         raise ValueError(
-            "chunk_id must contain non-whitespace text."
+            "chunk_id must not be blank."
         )
 
-    # UUID5 hashes the chunk identifier within our project-specific namespace.
-    # Returning its canonical string form matches Qdrant's supported UUID IDs.
     return str(
         uuid.uuid5(
             POINT_ID_NAMESPACE,
@@ -66,14 +79,16 @@ def stable_point_id(chunk_id: str) -> str:
     )
 
 
-def validate_chunk(chunk: dict[str, Any]) -> None:
-    """Validate fields required for retrieval and source citation."""
+def validate_chunk(
+    chunk: dict[str, Any],
+) -> None:
+    """Validate the minimum chunk contract required for retrieval."""
 
-    missing_fields = sorted(
-        field
-        for field in REQUIRED_CHUNK_FIELDS
-        if field not in chunk or chunk[field] is None
-    )
+    missing_fields = [
+        field_name
+        for field_name in REQUIRED_CHUNK_FIELDS
+        if chunk.get(field_name) is None
+    ]
 
     if missing_fields:
         raise ValueError(
@@ -81,83 +96,90 @@ def validate_chunk(chunk: dict[str, Any]) -> None:
             + ", ".join(missing_fields)
         )
 
-    if not str(chunk["chunk_id"]).strip():
+    if not str(
+        chunk["chunk_id"]
+    ).strip():
         raise ValueError(
-            "chunk_id must contain non-whitespace text."
+            "chunk_id must not be blank."
         )
 
-    if not str(chunk["chunk_text"]).strip():
+    if not str(
+        chunk["chunk_text"]
+    ).strip():
         raise ValueError(
-            f"Chunk {chunk['chunk_id']} has empty chunk_text."
+            "chunk_text must not be blank."
         )
 
 
 def build_payload(
     chunk: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build the metadata payload stored alongside the dense vector."""
+    """Build the Qdrant payload used for retrieval and citation generation.
 
-    validate_chunk(chunk)
+    The payload intentionally preserves the full chunk metadata rather than a
+    reduced subset because later reranking, filtering, citation rendering, and
+    evaluation stages may require different fields.
+    """
 
-    # Preserve retrieval, filtering, and citation metadata. Structural fields
-    # may legitimately be null until structure-aware chunking is implemented.
-    return {
-        "chunk_id": chunk.get("chunk_id"),
-        "parent_chunk_id": chunk.get("parent_chunk_id"),
-        "document_id": chunk.get("document_id"),
-        "title": chunk.get("title"),
-        "organization": chunk.get("organization"),
-        "category": chunk.get("category"),
-        "document_type": chunk.get("document_type"),
-        "language": chunk.get("language"),
-        "publication_date": chunk.get("publication_date"),
-        "source_url": chunk.get("source_url"),
-        "download_url": chunk.get("download_url"),
-        "retrieved_at": chunk.get("retrieved_at"),
-        "page_start": chunk.get("page_start"),
-        "page_end": chunk.get("page_end"),
-        "section": chunk.get("section"),
-        "subsection": chunk.get("subsection"),
-        "article_number": chunk.get("article_number"),
-        "article_title": chunk.get("article_title"),
-        "chunk_index": chunk.get("chunk_index"),
-        "chunk_text": chunk.get("chunk_text"),
-        "token_count": chunk.get("token_count"),
-        "extraction_method": chunk.get("extraction_method"),
-    }
+    validate_chunk(
+        chunk
+    )
+
+    return dict(
+        chunk
+    )
 
 
 def load_chunks(
     chunks_dir: Path = CHUNKS_DIR,
 ) -> list[dict[str, Any]]:
-    """Load and validate every processed child chunk."""
+    """Load and validate all processed child chunks in deterministic order."""
 
     chunks: list[dict[str, Any]] = []
 
-    for file_path in sorted(
+    for path in sorted(
         chunks_dir.glob("*.json")
     ):
-        with file_path.open(
+        with path.open(
             "r",
             encoding="utf-8",
         ) as file:
-            data = json.load(file)
+            data = json.load(
+                file
+            )
 
-        # Current chunk outputs may be stored either directly as a list or
-        # under a document-level "chunks" wrapper.
-        document_chunks = (
-            data
-            if isinstance(data, list)
-            else data.get("chunks", [])
-        )
+        # Support both the project's current list format and an optional
+        # wrapper object if chunk serialization evolves later.
+        if isinstance(
+            data,
+            dict,
+        ):
+            file_chunks = data.get(
+                "chunks",
+                [],
+            )
+        else:
+            file_chunks = data
 
-        for chunk in document_chunks:
-            validate_chunk(chunk)
-            chunks.append(chunk)
+        if not isinstance(
+            file_chunks,
+            list,
+        ):
+            raise ValueError(
+                f"Invalid chunk file format: {path}"
+            )
+
+        for chunk in file_chunks:
+            validate_chunk(
+                chunk
+            )
+            chunks.append(
+                chunk
+            )
 
     if not chunks:
-        raise RuntimeError(
-            f"No processed chunks found in {chunks_dir}"
+        raise ValueError(
+            f"No child chunks found in {chunks_dir}"
         )
 
     return chunks
@@ -167,18 +189,34 @@ def build_points(
     chunks: list[dict[str, Any]],
     embedding_service: EmbeddingService,
 ) -> list[PointStruct]:
-    """Embed chunks and convert them into Qdrant points."""
+    """Convert chunks into Qdrant points with dense and BM25 representations."""
+
+    if not chunks:
+        return []
+
+    for chunk in chunks:
+        validate_chunk(
+            chunk
+        )
 
     texts = [
-        str(chunk["chunk_text"])
+        str(
+            chunk["chunk_text"]
+        ).strip()
         for chunk in chunks
     ]
 
-    vectors = embedding_service.embed_passages(
-        texts
+    dense_vectors = (
+        embedding_service.embed_passages(
+            texts
+        )
     )
 
-    if len(vectors) != len(chunks):
+    if len(
+        dense_vectors
+    ) != len(
+        chunks
+    ):
         raise RuntimeError(
             "Embedding service returned a different number "
             "of vectors than input chunks."
@@ -186,27 +224,44 @@ def build_points(
 
     points: list[PointStruct] = []
 
-    for chunk, vector in zip(
+    for chunk, text, dense_vector in zip(
         chunks,
-        vectors,
+        texts,
+        dense_vectors,
         strict=True,
     ):
-        if len(vector) != embedding_service.dimension:
+        if len(
+            dense_vector
+        ) != embedding_service.dimension:
             raise RuntimeError(
-                f"Chunk {chunk['chunk_id']} produced "
-                f"{len(vector)} dimensions; expected "
-                f"{embedding_service.dimension}."
+                "Embedding dimension mismatch for "
+                f"chunk {chunk['chunk_id']}: "
+                f"expected {embedding_service.dimension}, "
+                f"received {len(dense_vector)}."
             )
+
+        # Qdrant's Document representation tells the server to generate the
+        # BM25 sparse vector from the same chunk text used by dense retrieval.
+        # This avoids introducing a second local sparse-model runtime.
+        sparse_document = Document(
+            text=text,
+            model=BM25_MODEL,
+        )
 
         points.append(
             PointStruct(
                 id=stable_point_id(
-                    str(chunk["chunk_id"])
+                    str(
+                        chunk["chunk_id"]
+                    )
                 ),
                 vector={
-                    DENSE_VECTOR_NAME: vector
+                    DENSE_VECTOR_NAME: dense_vector,
+                    SPARSE_VECTOR_NAME: sparse_document,
                 },
-                payload=build_payload(chunk),
+                payload=build_payload(
+                    chunk
+                ),
             )
         )
 
@@ -215,9 +270,10 @@ def build_points(
 
 def ingest_chunks(
     client: QdrantClient,
-    embedding_service: EmbeddingService,
     chunks: list[dict[str, Any]],
+    embedding_service: EmbeddingService,
     batch_size: int = 64,
+    collection_name: str = COLLECTION_NAME,
 ) -> int:
     """Embed and upsert chunks into Qdrant in bounded batches."""
 
@@ -226,28 +282,34 @@ def ingest_chunks(
             "batch_size must be greater than zero."
         )
 
-    total_ingested = 0
+    inserted_count = 0
 
-    for start in range(
+    for start_index in range(
         0,
         len(chunks),
         batch_size,
     ):
         batch = chunks[
-            start:start + batch_size
+            start_index:
+            start_index + batch_size
         ]
 
         points = build_points(
-            batch,
-            embedding_service,
+            chunks=batch,
+            embedding_service=embedding_service,
         )
 
+        if not points:
+            continue
+
         client.upsert(
-            collection_name=COLLECTION_NAME,
+            collection_name=collection_name,
             points=points,
             wait=True,
         )
 
-        total_ingested += len(points)
+        inserted_count += len(
+            points
+        )
 
-    return total_ingested
+    return inserted_count
