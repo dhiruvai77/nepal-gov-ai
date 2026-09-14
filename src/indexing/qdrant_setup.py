@@ -2,6 +2,8 @@
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
+    DenseVectorConfig,
+    DenseVectorNameConfig,
     Distance,
     Modifier,
     PayloadSchemaType,
@@ -17,12 +19,19 @@ QDRANT_URL = "http://localhost:6333"
 # Stable collection name shared by ingestion and retrieval code.
 COLLECTION_NAME = "nepal_gov_documents"
 
-# multilingual-e5-large-instruct produces 1024-dimensional dense embeddings.
-# The embedding service verifies this dimension when the real model can load.
+# multilingual-e5-large-instruct produces 1024-dimensional embeddings.
+# Both raw and contextual dense representations use the same E5 model.
 DENSE_VECTOR_SIZE = 1024
 
-# Named dense vector used for semantic retrieval.
+# Existing raw child-chunk embedding used by the production baseline.
 DENSE_VECTOR_NAME = "dense"
+
+# Experimental metadata-enriched dense representation.
+#
+# Keeping this separate from `dense` preserves the existing baseline so we can
+# run a controlled raw-vs-contextual retrieval evaluation before promoting the
+# contextual representation into production.
+CONTEXTUAL_DENSE_VECTOR_NAME = "dense_contextual"
 
 # Named sparse vector used for BM25-style lexical retrieval.
 SPARSE_VECTOR_NAME = "bm25"
@@ -51,9 +60,8 @@ def ensure_sparse_vector(
 ) -> None:
     """Ensure the collection contains the named BM25 sparse vector.
 
-    Qdrant requires create_vector_name() when adding a completely new vector
-    name to an existing collection. update_collection() can modify an existing
-    vector configuration but cannot introduce an unknown vector name.
+    Qdrant requires ``create_vector_name()`` when introducing a new named
+    vector to an existing collection. The collection itself is never recreated.
     """
 
     collection_info = client.get_collection(
@@ -69,14 +77,11 @@ def ensure_sparse_vector(
 
     if SPARSE_VECTOR_NAME in sparse_vectors:
         print(
-            f"Sparse vector already exists: "
+            "Sparse vector already exists: "
             f"{SPARSE_VECTOR_NAME}"
         )
         return
 
-    # SparseVectorNameConfig is the schema used specifically when adding a new
-    # named sparse vector to an existing collection.
-    #
     # Modifier.IDF enables document-frequency weighting required by Qdrant's
     # BM25-style sparse retrieval.
     client.create_vector_name(
@@ -93,6 +98,64 @@ def ensure_sparse_vector(
     print(
         f"Created sparse vector: "
         f"{SPARSE_VECTOR_NAME}"
+    )
+
+
+def ensure_contextual_dense_vector(
+    client: QdrantClient,
+) -> None:
+    """Ensure the collection contains the contextual dense vector schema.
+
+    Existing points do not automatically receive values for a newly created
+    vector name. A separate backfill step will generate and attach the
+    contextual embeddings after the schema has been validated.
+    """
+
+    collection_info = client.get_collection(
+        collection_name=COLLECTION_NAME
+    )
+
+    dense_vectors = (
+        collection_info.config.params.vectors
+    )
+
+    # NepalGov AI uses named dense vectors. Failing explicitly here is safer
+    # than attempting a migration against an unexpected unnamed-vector schema.
+    if not isinstance(
+        dense_vectors,
+        dict,
+    ):
+        raise RuntimeError(
+            "Expected Qdrant collection to use named dense vectors."
+        )
+
+    if (
+        CONTEXTUAL_DENSE_VECTOR_NAME
+        in dense_vectors
+    ):
+        print(
+            "Contextual dense vector already exists: "
+            f"{CONTEXTUAL_DENSE_VECTOR_NAME}"
+        )
+        return
+
+    # Adding a named vector is non-destructive. Existing raw dense and BM25
+    # representations remain untouched while this new vector is introduced.
+    client.create_vector_name(
+        collection_name=COLLECTION_NAME,
+        vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
+        vector_name_config=DenseVectorNameConfig(
+            dense=DenseVectorConfig(
+                size=DENSE_VECTOR_SIZE,
+                distance=Distance.COSINE,
+            )
+        ),
+        wait=True,
+    )
+
+    print(
+        "Created contextual dense vector: "
+        f"{CONTEXTUAL_DENSE_VECTOR_NAME}"
     )
 
 
@@ -124,16 +187,22 @@ def ensure_collection(
     )
 
     if not collection_exists:
-        # The base collection starts with the dense semantic vector.
-        # The BM25 sparse vector is added immediately afterward through the same
-        # schema-evolution path used for older existing collections.
+        # New collections begin with both dense representations so future fresh
+        # environments do not require a separate schema-migration operation.
+        #
+        # BM25 is still created separately through create_vector_name() because
+        # that is the schema-evolution path already used by this project.
         client.create_collection(
             collection_name=COLLECTION_NAME,
             vectors_config={
                 DENSE_VECTOR_NAME: VectorParams(
                     size=DENSE_VECTOR_SIZE,
                     distance=Distance.COSINE,
-                )
+                ),
+                CONTEXTUAL_DENSE_VECTOR_NAME: VectorParams(
+                    size=DENSE_VECTOR_SIZE,
+                    distance=Distance.COSINE,
+                ),
             },
         )
 
@@ -143,21 +212,25 @@ def ensure_collection(
         )
 
     else:
-        # Never recreate an existing collection because it may already contain
-        # indexed vectors and document payloads.
+        # Never recreate an existing collection because it already contains
+        # indexed points, payloads, and retrieval vectors.
         print(
             f"Collection already exists: "
             f"{COLLECTION_NAME}"
         )
 
-    # This must run for both new and existing collections because sparse
-    # retrieval was introduced after the initial dense-only schema.
+    # Run these checks for both new and existing collections. This makes setup
+    # idempotent and upgrades collections created by previous project versions.
     ensure_sparse_vector(
         client
     )
 
-    # Metadata indexes support efficient filters for both dense and sparse
-    # retrieval paths.
+    ensure_contextual_dense_vector(
+        client
+    )
+
+    # Metadata indexes support efficient exact-match filters for dense, sparse,
+    # and future retrieval strategies.
     ensure_payload_indexes(
         client
     )
@@ -173,7 +246,7 @@ def main() -> None:
 
     client = create_client()
 
-    # Listing collections provides an explicit connectivity check before any
+    # Listing collections gives us an explicit connectivity check before any
     # schema mutation is attempted.
     collections = client.get_collections()
 

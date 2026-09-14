@@ -1,7 +1,6 @@
 """Unit tests for NepalGov AI Qdrant ingestion."""
 
 from collections.abc import Sequence
-from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -21,6 +20,7 @@ from src.indexing.qdrant_ingestion import (
 )
 from src.indexing.qdrant_setup import (
     COLLECTION_NAME,
+    CONTEXTUAL_DENSE_VECTOR_NAME,
     DENSE_VECTOR_NAME,
     SPARSE_VECTOR_NAME,
 )
@@ -60,13 +60,13 @@ class FakeEmbeddingService(
 class WrongDimensionEmbeddingService(
     FakeEmbeddingService
 ):
-    """Embedding provider that intentionally violates the vector contract."""
+    """Embedding provider that intentionally violates vector dimensions."""
 
     def embed_passages(
         self,
         texts: Sequence[str],
     ) -> list[EmbeddingVector]:
-        """Return vectors with the wrong dimension."""
+        """Return vectors with fewer dimensions than declared."""
 
         return [
             [1.0, 0.0]
@@ -77,13 +77,13 @@ class WrongDimensionEmbeddingService(
 class WrongCountEmbeddingService(
     FakeEmbeddingService
 ):
-    """Embedding provider that returns fewer vectors than requested."""
+    """Embedding provider that returns too few vectors."""
 
     def embed_passages(
         self,
         texts: Sequence[str],
     ) -> list[EmbeddingVector]:
-        """Return only one vector regardless of input size."""
+        """Return only one vector regardless of the number of inputs."""
 
         return [
             [1.0, 0.0, 0.0]
@@ -106,7 +106,9 @@ def sample_chunk(
         "language": "en",
         "publication_date": "2015",
         "source_url": "https://example.gov.np/constitution",
-        "download_url": "https://example.gov.np/constitution.pdf",
+        "download_url": (
+            "https://example.gov.np/constitution.pdf"
+        ),
         "retrieved_at": "2026-09-01T12:00:00Z",
         "page_start": 12,
         "page_end": 13,
@@ -216,18 +218,24 @@ def test_build_payload_preserves_chunk_metadata() -> None:
     )
 
     assert payload == chunk
+
     assert (
-        payload["article_number"]
+        payload[
+            "article_number"
+        ]
         == "16"
     )
+
     assert (
-        payload["source_url"]
+        payload[
+            "source_url"
+        ]
         == "https://example.gov.np/constitution"
     )
 
 
 def test_build_points_uses_embedding_service() -> None:
-    """Dense vectors should come from the injected provider."""
+    """Both raw and contextual dense vectors should come from the provider."""
 
     service = FakeEmbeddingService()
 
@@ -242,9 +250,20 @@ def test_build_points_uses_embedding_service() -> None:
         points
     ) == 1
 
+    # Existing raw dense representation remains available as the benchmark
+    # baseline and production-compatible vector.
     assert (
         points[0].vector[
             DENSE_VECTOR_NAME
+        ]
+        == [1.0, 0.0, 0.0]
+    )
+
+    # Future ingestion must also populate the contextual dense vector so an
+    # upsert cannot leave the new representation missing.
+    assert (
+        points[0].vector[
+            CONTEXTUAL_DENSE_VECTOR_NAME
         ]
         == [1.0, 0.0, 0.0]
     )
@@ -273,6 +292,8 @@ def test_build_points_adds_bm25_sparse_document() -> None:
         Document,
     )
 
+    # Sparse retrieval must still use the canonical raw source text rather
+    # than the metadata-enriched dense representation.
     assert (
         sparse_value.text
         == chunk["chunk_text"]
@@ -281,6 +302,39 @@ def test_build_points_adds_bm25_sparse_document() -> None:
     assert (
         sparse_value.model
         == BM25_MODEL
+    )
+
+
+def test_build_points_keeps_bm25_on_raw_chunk_text() -> None:
+    """Contextual dense enrichment must not change lexical BM25 input."""
+
+    service = FakeEmbeddingService()
+
+    chunk = sample_chunk()
+
+    point = build_points(
+        chunks=[
+            chunk,
+        ],
+        embedding_service=service,
+    )[0]
+
+    sparse_value = point.vector[
+        SPARSE_VECTOR_NAME
+    ]
+
+    # The contextual representation contains metadata such as the document
+    # title, whereas BM25 should contain exactly the original chunk text.
+    assert (
+        sparse_value.text
+        == chunk[
+            "chunk_text"
+        ]
+    )
+
+    assert (
+        "Document: Constitution of Nepal"
+        not in sparse_value.text
     )
 
 
@@ -302,19 +356,34 @@ def test_build_points_preserves_payload() -> None:
         point.payload[
             "chunk_id"
         ]
-        == chunk["chunk_id"]
+        == chunk[
+            "chunk_id"
+        ]
     )
 
     assert (
         point.payload[
             "document_id"
         ]
-        == chunk["document_id"]
+        == chunk[
+            "document_id"
+        ]
+    )
+
+    # Source text remains unchanged even though contextual text is separately
+    # constructed for the new dense embedding.
+    assert (
+        point.payload[
+            "chunk_text"
+        ]
+        == chunk[
+            "chunk_text"
+        ]
     )
 
 
 def test_build_points_rejects_wrong_embedding_dimension() -> None:
-    """Dense vectors must match the provider's declared dimension."""
+    """Both dense representations must match the provider dimension."""
 
     service = (
         WrongDimensionEmbeddingService()
@@ -333,12 +402,14 @@ def test_build_points_rejects_wrong_embedding_dimension() -> None:
 
 
 def test_build_points_rejects_wrong_vector_count() -> None:
-    """Embedding providers must return one vector per chunk."""
+    """Embedding providers must return one vector per representation."""
 
     service = (
         WrongCountEmbeddingService()
     )
 
+    # Two chunks require four dense vectors:
+    # two raw representations + two contextual representations.
     with pytest.raises(
         RuntimeError,
         match="different number of vectors",
@@ -396,18 +467,47 @@ def test_ingest_chunks_batches_upserts() -> None:
     )
 
     assert (
-        first_call["collection_name"]
+        first_call[
+            "collection_name"
+        ]
         == COLLECTION_NAME
     )
 
     assert (
-        first_call["wait"]
+        first_call[
+            "wait"
+        ]
         is True
     )
 
     assert len(
-        first_call["points"]
+        first_call[
+            "points"
+        ]
     ) == 2
+
+    # Every newly ingested point should now carry both dense representations
+    # together with the existing BM25 representation.
+    first_point = (
+        first_call[
+            "points"
+        ][0]
+    )
+
+    assert (
+        DENSE_VECTOR_NAME
+        in first_point.vector
+    )
+
+    assert (
+        CONTEXTUAL_DENSE_VECTOR_NAME
+        in first_point.vector
+    )
+
+    assert (
+        SPARSE_VECTOR_NAME
+        in first_point.vector
+    )
 
 
 def test_ingest_chunks_rejects_invalid_batch_size() -> None:

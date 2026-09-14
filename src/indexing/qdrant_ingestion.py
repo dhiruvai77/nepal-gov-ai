@@ -1,8 +1,9 @@
 """Production ingestion utilities for NepalGov AI.
 
-This module loads processed document chunks, generates dense embeddings through
-the generic EmbeddingService interface, attaches Qdrant's BM25 sparse document
-representation, and upserts both representations with retrieval metadata.
+This module loads processed document chunks, generates both raw and
+metadata-contextualized dense embeddings through the generic EmbeddingService
+interface, attaches Qdrant's BM25 sparse document representation, and upserts
+all retrieval representations with the original chunk metadata.
 """
 
 import json
@@ -17,8 +18,12 @@ from qdrant_client.models import (
 )
 
 from src.embeddings.base import EmbeddingService
+from src.embeddings.contextual_passage import (
+    build_contextualized_passage_text,
+)
 from src.indexing.qdrant_setup import (
     COLLECTION_NAME,
+    CONTEXTUAL_DENSE_VECTOR_NAME,
     DENSE_VECTOR_NAME,
     SPARSE_VECTOR_NAME,
 )
@@ -116,9 +121,9 @@ def build_payload(
 ) -> dict[str, Any]:
     """Build the Qdrant payload used for retrieval and citation generation.
 
-    The payload intentionally preserves the full chunk metadata rather than a
-    reduced subset because later reranking, filtering, citation rendering, and
-    evaluation stages may require different fields.
+    The payload intentionally preserves the full original chunk metadata.
+    Contextualized text is used only for one dense embedding representation;
+    it does not replace source text used for citations or answer generation.
     """
 
     validate_chunk(
@@ -173,6 +178,7 @@ def load_chunks(
             validate_chunk(
                 chunk
             )
+
             chunks.append(
                 chunk
             )
@@ -189,7 +195,7 @@ def build_points(
     chunks: list[dict[str, Any]],
     embedding_service: EmbeddingService,
 ) -> list[PointStruct]:
-    """Convert chunks into Qdrant points with dense and BM25 representations."""
+    """Convert chunks into raw dense, contextual dense, and BM25 vectors."""
 
     if not chunks:
         return []
@@ -199,52 +205,116 @@ def build_points(
             chunk
         )
 
-    texts = [
+    # Raw source text remains the canonical representation used by:
+    # - the existing dense retrieval baseline;
+    # - BM25 sparse retrieval;
+    # - citations;
+    # - downstream RAG generation.
+    raw_texts = [
         str(
             chunk["chunk_text"]
         ).strip()
         for chunk in chunks
     ]
 
+    # Contextual dense text enriches each chunk with useful document metadata
+    # such as title, document type, section, and article information.
+    #
+    # This text exists only for semantic embedding. It does not replace the
+    # original `chunk_text` stored in the point payload.
+    contextual_texts = [
+        build_contextualized_passage_text(
+            chunk
+        )
+        for chunk in chunks
+    ]
+
+    # Embed both representations in one provider call. Hosted E5 performs its
+    # own bounded batching internally, so this remains safe for ingestion.
+    embedding_inputs = [
+        *raw_texts,
+        *contextual_texts,
+    ]
+
     dense_vectors = (
         embedding_service.embed_passages(
-            texts
+            embedding_inputs
         )
     )
 
-    if len(
-        dense_vectors
-    ) != len(
-        chunks
+    expected_vector_count = (
+        len(chunks) * 2
+    )
+
+    if (
+        len(dense_vectors)
+        != expected_vector_count
     ):
         raise RuntimeError(
             "Embedding service returned a different number "
-            "of vectors than input chunks."
+            "of vectors than input passage representations."
         )
+
+    # Inputs were ordered as all raw texts followed by all contextual texts.
+    # Split the returned vectors at the same boundary.
+    split_index = len(chunks)
+
+    raw_dense_vectors = (
+        dense_vectors[
+            :split_index
+        ]
+    )
+
+    contextual_dense_vectors = (
+        dense_vectors[
+            split_index:
+        ]
+    )
 
     points: list[PointStruct] = []
 
-    for chunk, text, dense_vector in zip(
+    for (
+        chunk,
+        raw_text,
+        raw_dense_vector,
+        contextual_dense_vector,
+    ) in zip(
         chunks,
-        texts,
-        dense_vectors,
+        raw_texts,
+        raw_dense_vectors,
+        contextual_dense_vectors,
         strict=True,
     ):
-        if len(
-            dense_vector
-        ) != embedding_service.dimension:
-            raise RuntimeError(
-                "Embedding dimension mismatch for "
-                f"chunk {chunk['chunk_id']}: "
-                f"expected {embedding_service.dimension}, "
-                f"received {len(dense_vector)}."
-            )
+        # Both dense representations use the same E5 model and therefore must
+        # satisfy the same vector-dimension contract.
+        for vector_name, dense_vector in (
+            (
+                DENSE_VECTOR_NAME,
+                raw_dense_vector,
+            ),
+            (
+                CONTEXTUAL_DENSE_VECTOR_NAME,
+                contextual_dense_vector,
+            ),
+        ):
+            if (
+                len(dense_vector)
+                != embedding_service.dimension
+            ):
+                raise RuntimeError(
+                    "Embedding dimension mismatch for "
+                    f"{vector_name} vector of chunk "
+                    f"{chunk['chunk_id']}: "
+                    f"expected {embedding_service.dimension}, "
+                    f"received {len(dense_vector)}."
+                )
 
-        # Qdrant's Document representation tells the server to generate the
-        # BM25 sparse vector from the same chunk text used by dense retrieval.
-        # This avoids introducing a second local sparse-model runtime.
+        # BM25 deliberately continues to use the original chunk text.
+        #
+        # This keeps the sparse retrieval baseline unchanged so subsequent
+        # evaluation isolates the effect of contextual dense embeddings.
         sparse_document = Document(
-            text=text,
+            text=raw_text,
             model=BM25_MODEL,
         )
 
@@ -256,9 +326,23 @@ def build_points(
                     )
                 ),
                 vector={
-                    DENSE_VECTOR_NAME: dense_vector,
-                    SPARSE_VECTOR_NAME: sparse_document,
+                    # Existing production dense baseline.
+                    DENSE_VECTOR_NAME: (
+                        raw_dense_vector
+                    ),
+
+                    # New metadata-enriched semantic representation.
+                    CONTEXTUAL_DENSE_VECTOR_NAME: (
+                        contextual_dense_vector
+                    ),
+
+                    # Existing lexical representation remains unchanged.
+                    SPARSE_VECTOR_NAME: (
+                        sparse_document
+                    ),
                 },
+
+                # Preserve original chunk metadata and source text.
                 payload=build_payload(
                     chunk
                 ),
