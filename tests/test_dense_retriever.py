@@ -12,6 +12,7 @@ from src.embeddings.base import (
 )
 from src.indexing.qdrant_setup import (
     COLLECTION_NAME,
+    CONTEXTUAL_DENSE_VECTOR_NAME,
     DENSE_VECTOR_NAME,
 )
 from src.retrieval.dense_retriever import (
@@ -126,10 +127,21 @@ def test_build_metadata_filter_builds_keyword_conditions() -> None:
     assert result.must is not None
     assert len(result.must) == 2
 
-    assert result.must[0].key == "language"
-    assert result.must[0].match.value == "en"
+    assert (
+        result.must[0].key
+        == "language"
+    )
 
-    assert result.must[1].key == "document_type"
+    assert (
+        result.must[0].match.value
+        == "en"
+    )
+
+    assert (
+        result.must[1].key
+        == "document_type"
+    )
+
     assert (
         result.must[1].match.value
         == "constitution"
@@ -175,22 +187,52 @@ def test_normalize_search_result_preserves_citation_metadata() -> None:
         result,
         RetrievalResult,
     )
-    assert result.score == pytest.approx(0.91)
-    assert result.chunk_id == (
-        "constitution_chunk_00001"
+
+    assert (
+        result.score
+        == pytest.approx(
+            0.91
+        )
     )
-    assert result.document_id == (
-        "constitution_nepal_current_en"
+
+    assert (
+        result.chunk_id
+        == "constitution_chunk_00001"
     )
-    assert result.title == "Constitution of Nepal"
-    assert result.organization == (
-        "Nepal Law Commission"
+
+    assert (
+        result.document_id
+        == "constitution_nepal_current_en"
     )
-    assert result.page_start == 12
-    assert result.page_end == 13
-    assert result.article_number == "16"
-    assert result.source_url == (
-        "https://example.gov.np/constitution"
+
+    assert (
+        result.title
+        == "Constitution of Nepal"
+    )
+
+    assert (
+        result.organization
+        == "Nepal Law Commission"
+    )
+
+    assert (
+        result.page_start
+        == 12
+    )
+
+    assert (
+        result.page_end
+        == 13
+    )
+
+    assert (
+        result.article_number
+        == "16"
+    )
+
+    assert (
+        result.source_url
+        == "https://example.gov.np/constitution"
     )
 
 
@@ -198,7 +240,10 @@ def test_normalize_search_result_rejects_incomplete_payload() -> None:
     """Malformed indexed points should fail instead of hiding bad metadata."""
 
     point = sample_point()
-    del point.payload["source_url"]
+
+    del point.payload[
+        "source_url"
+    ]
 
     with pytest.raises(
         RuntimeError,
@@ -210,9 +255,10 @@ def test_normalize_search_result_rejects_incomplete_payload() -> None:
 
 
 def test_dense_retriever_queries_named_dense_vector() -> None:
-    """Dense retrieval should send the embedded query to Qdrant correctly."""
+    """Default dense retrieval should continue using the raw dense vector."""
 
     client = Mock()
+
     client.query_points.return_value = (
         SimpleNamespace(
             points=[
@@ -229,13 +275,22 @@ def test_dense_retriever_queries_named_dense_vector() -> None:
     )
 
     results = retriever.retrieve(
-        query="What does the Constitution say about dignity?",
+        query=(
+            "What does the Constitution "
+            "say about dignity?"
+        ),
         top_k=5,
     )
 
-    assert len(results) == 1
-    assert results[0].score == pytest.approx(
-        0.91
+    assert len(
+        results
+    ) == 1
+
+    assert (
+        results[0].score
+        == pytest.approx(
+            0.91
+        )
     )
 
     client.query_points.assert_called_once()
@@ -245,27 +300,135 @@ def test_dense_retriever_queries_named_dense_vector() -> None:
     )
 
     assert (
-        call_kwargs["collection_name"]
+        call_kwargs[
+            "collection_name"
+        ]
         == COLLECTION_NAME
     )
-    assert call_kwargs["query"] == [
-        0.8,
-        0.1,
-        0.1,
-    ]
+
     assert (
-        call_kwargs["using"]
+        call_kwargs[
+            "query"
+        ]
+        == [
+            0.8,
+            0.1,
+            0.1,
+        ]
+    )
+
+    # Backward compatibility is important: creating a DenseRetriever without
+    # selecting a vector must still query the original production baseline.
+    assert (
+        call_kwargs[
+            "using"
+        ]
         == DENSE_VECTOR_NAME
     )
-    assert call_kwargs["query_filter"] is None
-    assert call_kwargs["limit"] == 5
-    assert call_kwargs["with_payload"] is True
+
+    assert (
+        call_kwargs[
+            "query_filter"
+        ]
+        is None
+    )
+
+    assert (
+        call_kwargs[
+            "limit"
+        ]
+        == 5
+    )
+
+    assert (
+        call_kwargs[
+            "with_payload"
+        ]
+        is True
+    )
+
+
+def test_dense_retriever_can_query_contextual_vector() -> None:
+    """Evaluation should be able to select contextual dense retrieval."""
+
+    client = Mock()
+
+    client.query_points.return_value = (
+        SimpleNamespace(
+            points=[
+                sample_point(),
+            ]
+        )
+    )
+
+    retriever = DenseRetriever(
+        client=client,
+        embedding_service=FakeEmbeddingService(),
+        vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
+    )
+
+    results = retriever.retrieve(
+        query=(
+            "What does the Constitution "
+            "say about health?"
+        ),
+        top_k=5,
+    )
+
+    assert len(
+        results
+    ) == 1
+
+    call_kwargs = (
+        client.query_points.call_args.kwargs
+    )
+
+    # The query embedding itself is unchanged. Only the named Qdrant passage
+    # representation against which it is compared should differ.
+    assert (
+        call_kwargs[
+            "using"
+        ]
+        == CONTEXTUAL_DENSE_VECTOR_NAME
+    )
+
+    assert (
+        call_kwargs[
+            "query"
+        ]
+        == [
+            0.8,
+            0.1,
+            0.1,
+        ]
+    )
+
+
+def test_dense_retriever_rejects_unknown_vector_name() -> None:
+    """Dense retrieval should not silently query an unintended named vector."""
+
+    client = Mock()
+
+    with pytest.raises(
+        ValueError,
+        match="Unsupported dense vector name",
+    ):
+        DenseRetriever(
+            client=client,
+            embedding_service=FakeEmbeddingService(),
+            vector_name="unknown_dense_vector",
+        )
+
+    # Invalid configuration should fail during construction before any search
+    # request reaches Qdrant.
+    client.query_points.assert_not_called()
 
 
 def test_dense_retriever_applies_metadata_filters() -> None:
     """Retriever filters should be forwarded to Qdrant."""
 
     client = Mock()
+
     client.query_points.return_value = (
         SimpleNamespace(
             points=[]
@@ -295,7 +458,10 @@ def test_dense_retriever_applies_metadata_filters() -> None:
 
     assert query_filter is not None
     assert query_filter.must is not None
-    assert len(query_filter.must) == 2
+
+    assert len(
+        query_filter.must
+    ) == 2
 
 
 def test_dense_retriever_rejects_blank_query() -> None:

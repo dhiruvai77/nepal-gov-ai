@@ -1,8 +1,9 @@
 """Dense-vector retrieval for NepalGov AI.
 
 This module embeds a user query through the generic EmbeddingService interface,
-optionally applies metadata filters, searches Qdrant's named dense vector, and
-returns normalized retrieval results for downstream ranking and RAG stages.
+optionally applies metadata filters, searches a selected Qdrant named dense
+vector, and returns normalized retrieval results for downstream ranking and
+RAG stages.
 """
 
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ from qdrant_client.models import (
 from src.embeddings.base import EmbeddingService
 from src.indexing.qdrant_setup import (
     COLLECTION_NAME,
+    CONTEXTUAL_DENSE_VECTOR_NAME,
     DENSE_VECTOR_NAME,
 )
 
@@ -30,6 +32,14 @@ FILTERABLE_FIELDS = {
     "category",
     "document_type",
     "organization",
+}
+
+# Dense retrieval currently supports the original raw chunk embedding and the
+# metadata-contextualized experimental representation. Keeping this explicit
+# prevents accidental queries against unrelated named vectors such as BM25.
+SUPPORTED_DENSE_VECTOR_NAMES = {
+    DENSE_VECTOR_NAME,
+    CONTEXTUAL_DENSE_VECTOR_NAME,
 }
 
 
@@ -182,12 +192,32 @@ class DenseRetriever:
         client: QdrantClient,
         embedding_service: EmbeddingService,
         collection_name: str = COLLECTION_NAME,
+        vector_name: str = DENSE_VECTOR_NAME,
     ) -> None:
-        """Store retrieval dependencies without loading a specific model."""
+        """Store retrieval dependencies and select the named dense vector.
+
+        The default remains the original raw dense representation so adding
+        contextual embeddings does not silently change production retrieval.
+        """
+
+        if (
+            vector_name
+            not in SUPPORTED_DENSE_VECTOR_NAMES
+        ):
+            raise ValueError(
+                "Unsupported dense vector name: "
+                f"{vector_name}. Supported values: "
+                + ", ".join(
+                    sorted(
+                        SUPPORTED_DENSE_VECTOR_NAMES
+                    )
+                )
+            )
 
         self.client = client
         self.embedding_service = embedding_service
         self.collection_name = collection_name
+        self.vector_name = vector_name
 
     def retrieve(
         self,
@@ -231,12 +261,12 @@ class DenseRetriever:
             filters
         )
 
-        # `using` selects the named dense vector. This keeps the collection
-        # compatible with future sparse vectors used for hybrid retrieval.
+        # `using` selects either the baseline raw dense vector or the
+        # contextual dense representation. Raw dense remains the default.
         response = self.client.query_points(
             collection_name=self.collection_name,
             query=query_vector,
-            using=DENSE_VECTOR_NAME,
+            using=self.vector_name,
             query_filter=query_filter,
             limit=top_k,
             with_payload=True,
