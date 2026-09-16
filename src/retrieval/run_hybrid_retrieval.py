@@ -1,6 +1,6 @@
 """Production command-line entry point for NepalGov AI hybrid retrieval.
 
-The entry point combines hosted multilingual E5 dense retrieval with Qdrant
+The entry point combines contextual multilingual E5 dense retrieval with Qdrant
 BM25 sparse retrieval and fuses both ranked candidate lists using RRF.
 
 For cross-lingual retrieval, BM25 is skipped because lexical overlap is not
@@ -16,6 +16,7 @@ from src.embeddings.hf_e5_service import (
     HuggingFaceE5EmbeddingService,
 )
 from src.indexing.qdrant_setup import (
+    CONTEXTUAL_DENSE_VECTOR_NAME,
     QDRANT_URL,
 )
 from src.retrieval.dense_retriever import (
@@ -75,14 +76,14 @@ def run_hybrid_retrieval(
     rrf_k: int = DEFAULT_RRF_K,
     candidate_multiplier: int = DEFAULT_CANDIDATE_MULTIPLIER,
 ) -> list[RetrievalResult]:
-    """Execute retrieval using hybrid RRF or dense-only cross-lingual routing.
+    """Execute production retrieval with language-aware routing.
 
-    Same-language retrieval uses dense semantic retrieval plus BM25 and fuses
-    both rankings with Reciprocal Rank Fusion.
+    Same-language retrieval uses metadata-contextualized dense semantic
+    retrieval plus BM25 and fuses both rankings with Reciprocal Rank Fusion.
 
     When a language filter explicitly requests documents in a different
-    language from the query, the function falls back to multilingual dense
-    retrieval because BM25 depends on lexical overlap and can introduce noise.
+    language from the query, the function uses contextual multilingual dense
+    retrieval only because BM25 depends on lexical overlap.
 
     Dependencies can be injected by tests or future FastAPI/Streamlit layers.
     """
@@ -103,9 +104,12 @@ def run_hybrid_retrieval(
         )
     )
 
+    # The contextual representation is now the production semantic retrieval
+    # vector. Raw dense remains stored for baselines and diagnostics.
     dense_retriever = DenseRetriever(
         client=active_client,
         embedding_service=active_embedding_service,
+        vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
     )
 
     query_language = detect_query_language(
@@ -120,7 +124,7 @@ def run_hybrid_retrieval(
 
     # BM25 is a lexical retriever. When the query language and requested corpus
     # language differ, sparse matches can be dominated by accidental token
-    # overlap. Multilingual E5 is specifically suited to this cross-lingual case.
+    # overlap. Contextual multilingual E5 handles this cross-lingual route.
     if (
         target_language is not None
         and target_language != query_language

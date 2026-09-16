@@ -7,6 +7,9 @@ from src.embeddings.base import (
     EmbeddingService,
     EmbeddingVector,
 )
+from src.indexing.qdrant_setup import (
+    CONTEXTUAL_DENSE_VECTOR_NAME,
+)
 from src.retrieval.dense_retriever import (
     RetrievalResult,
 )
@@ -78,12 +81,14 @@ def sample_result() -> RetrievalResult:
 
 
 def test_run_dense_retrieval_wires_dependencies() -> None:
-    """The orchestration layer should construct and call DenseRetriever."""
+    """Production dense retrieval should explicitly select contextual vectors."""
 
     embedding_service = (
         FakeEmbeddingService()
     )
+
     client = Mock()
+
     expected_results = [
         sample_result(),
     ]
@@ -94,6 +99,7 @@ def test_run_dense_retrieval_wires_dependencies() -> None:
         retriever_mock = (
             retriever_class_mock.return_value
         )
+
         retriever_mock.retrieve.return_value = (
             expected_results
         )
@@ -108,11 +114,17 @@ def test_run_dense_retrieval_wires_dependencies() -> None:
             client=client,
         )
 
-    assert results == expected_results
+    assert (
+        results
+        == expected_results
+    )
 
+    # Production orchestration must deliberately select dense_contextual rather
+    # than relying on DenseRetriever's raw-vector baseline default.
     retriever_class_mock.assert_called_once_with(
         client=client,
         embedding_service=embedding_service,
+        vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
     )
 
     retriever_mock.retrieve.assert_called_once_with(
@@ -130,6 +142,7 @@ def test_run_dense_retrieval_uses_supplied_dependencies() -> None:
     embedding_service = (
         FakeEmbeddingService()
     )
+
     client = Mock()
 
     with (
@@ -184,6 +197,7 @@ def test_run_dense_retrieval_uses_hosted_e5_by_default() -> None:
     retriever_class_mock.assert_called_once_with(
         client=client,
         embedding_service=hosted_embedding,
+        vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
     )
 
 
@@ -225,18 +239,22 @@ def test_print_results_includes_citation_information(
         "score=0.9100"
         in captured.out
     )
+
     assert (
         "Constitution of Nepal"
         in captured.out
     )
+
     assert (
         "pages=12-13"
         in captured.out
     )
+
     assert (
         "constitution_chunk_00001"
         in captured.out
     )
+
     assert (
         "https://example.gov.np/constitution"
         in captured.out

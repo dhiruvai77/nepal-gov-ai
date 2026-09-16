@@ -9,6 +9,9 @@ from src.embeddings.base import (
     EmbeddingService,
     EmbeddingVector,
 )
+from src.indexing.qdrant_setup import (
+    CONTEXTUAL_DENSE_VECTOR_NAME,
+)
 from src.retrieval.dense_retriever import (
     RetrievalResult,
 )
@@ -107,12 +110,14 @@ def test_detect_query_language_rejects_blank_query() -> None:
 
 
 def test_run_hybrid_retrieval_wires_all_retrievers() -> None:
-    """Same-language retrieval should connect dense, sparse, and RRF layers."""
+    """Same-language retrieval should connect contextual dense, sparse, and RRF."""
 
     embedding_service = (
         FakeEmbeddingService()
     )
+
     client = Mock()
+
     expected_results = [
         sample_result(),
     ]
@@ -149,9 +154,12 @@ def test_run_hybrid_retrieval_wires_all_retrievers() -> None:
         == expected_results
     )
 
+    # Production must explicitly use contextual dense retrieval rather than the
+    # raw-vector default retained inside DenseRetriever.
     dense_class_mock.assert_called_once_with(
         client=client,
         embedding_service=embedding_service,
+        vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
     )
 
     sparse_class_mock.assert_called_once_with(
@@ -178,13 +186,15 @@ def test_run_hybrid_retrieval_wires_all_retrievers() -> None:
     )
 
 
-def test_cross_lingual_request_uses_dense_only() -> None:
-    """BM25 should be skipped when query and target languages differ."""
+def test_cross_lingual_request_uses_contextual_dense_only() -> None:
+    """English-to-Nepali requests should skip BM25 and use contextual dense."""
 
     embedding_service = (
         FakeEmbeddingService()
     )
+
     client = Mock()
+
     expected_results = [
         sample_result(),
     ]
@@ -222,6 +232,12 @@ def test_cross_lingual_request_uses_dense_only() -> None:
         == expected_results
     )
 
+    dense_class_mock.assert_called_once_with(
+        client=client,
+        embedding_service=embedding_service,
+        vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
+    )
+
     dense_class_mock.return_value.retrieve.assert_called_once_with(
         query=(
             "What does the survey say "
@@ -237,13 +253,15 @@ def test_cross_lingual_request_uses_dense_only() -> None:
     hybrid_class_mock.assert_not_called()
 
 
-def test_nepali_to_english_request_uses_dense_only() -> None:
-    """The reverse cross-lingual direction should also skip BM25."""
+def test_nepali_to_english_request_uses_contextual_dense_only() -> None:
+    """Nepali-to-English requests should also skip BM25."""
 
     embedding_service = (
         FakeEmbeddingService()
     )
+
     client = Mock()
+
     expected_results = [
         sample_result(),
     ]
@@ -278,6 +296,12 @@ def test_nepali_to_english_request_uses_dense_only() -> None:
         == expected_results
     )
 
+    dense_class_mock.assert_called_once_with(
+        client=client,
+        embedding_service=embedding_service,
+        vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
+    )
+
     dense_class_mock.return_value.retrieve.assert_called_once_with(
         query="शिक्षाको अधिकार के हो?",
         top_k=5,
@@ -296,6 +320,7 @@ def test_run_hybrid_retrieval_uses_supplied_dependencies() -> None:
     embedding_service = (
         FakeEmbeddingService()
     )
+
     client = Mock()
 
     with (
@@ -323,7 +348,7 @@ def test_run_hybrid_retrieval_uses_supplied_dependencies() -> None:
 
 
 def test_run_hybrid_retrieval_uses_hosted_e5_by_default() -> None:
-    """The production path must use hosted multilingual E5 by default."""
+    """Production path should use hosted E5 and contextual dense by default."""
 
     hosted_embedding = Mock()
     client = Mock()
@@ -353,6 +378,7 @@ def test_run_hybrid_retrieval_uses_hosted_e5_by_default() -> None:
     dense_class_mock.assert_called_once_with(
         client=client,
         embedding_service=hosted_embedding,
+        vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
     )
 
 

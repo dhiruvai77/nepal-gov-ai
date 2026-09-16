@@ -1,8 +1,8 @@
 """Command-line entry point for dense retrieval in NepalGov AI.
 
 This module wires together the production hosted embedding service, Qdrant
-client, and DenseRetriever. Dependency injection keeps orchestration testable
-without making network calls during unit tests.
+client, and DenseRetriever. Production dense retrieval uses the contextualized
+passage representation selected through Qdrant's named dense vector.
 """
 
 from qdrant_client import QdrantClient
@@ -11,7 +11,10 @@ from src.embeddings.base import EmbeddingService
 from src.embeddings.hf_e5_service import (
     HuggingFaceE5EmbeddingService,
 )
-from src.indexing.qdrant_setup import QDRANT_URL
+from src.indexing.qdrant_setup import (
+    CONTEXTUAL_DENSE_VECTOR_NAME,
+    QDRANT_URL,
+)
 from src.retrieval.dense_retriever import (
     DenseRetriever,
     RetrievalResult,
@@ -33,6 +36,10 @@ def run_dense_retrieval(
     Dependencies can be injected by tests or future application layers. When
     omitted, the Windows-compatible hosted E5 provider and local Qdrant service
     are constructed automatically.
+
+    Production retrieval explicitly selects the contextual dense passage
+    representation. The original raw dense vector remains available inside the
+    collection for baselines, diagnostics, and controlled evaluation.
     """
 
     # Hosted E5 is the production default because Windows Smart App Control can
@@ -51,9 +58,12 @@ def run_dense_retrieval(
         )
     )
 
+    # Production semantic retrieval now uses the metadata-contextualized
+    # passage representation validated by the retrieval benchmark.
     retriever = DenseRetriever(
         client=active_client,
         embedding_service=active_embedding_service,
+        vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
     )
 
     return retriever.retrieve(
@@ -84,12 +94,15 @@ def print_results(
             f"title={result.title} "
             f"pages={result.page_start}-{result.page_end}"
         )
+
         print(
             f"    chunk_id={result.chunk_id}"
         )
+
         print(
             f"    source={result.source_url}"
         )
+
         print(
             f"    text={result.chunk_text}"
         )
