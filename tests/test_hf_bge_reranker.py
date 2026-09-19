@@ -103,6 +103,31 @@ def test_service_builds_rerank_url() -> None:
     )
 
 
+def test_format_candidate_text_adds_document_title() -> None:
+    """Production reranking should use the evaluated title-aware input."""
+
+    candidate = make_result(
+        "point-1",
+        "Every citizen has the right to education.",
+    )
+
+    assert (
+        HuggingFaceBGEReranker._format_candidate_text(
+            candidate
+        )
+        == (
+            "Document: Test Government Document\n\n"
+            "Every citizen has the right to education."
+        )
+    )
+
+    # Formatting for reranking must not mutate the original evidence passage.
+    assert (
+        candidate.chunk_text
+        == "Every citizen has the right to education."
+    )
+
+
 def test_rerank_sends_tei_payload_and_orders_results() -> None:
     """The provider should use TEI's query-plus-texts reranking contract."""
 
@@ -189,17 +214,74 @@ def test_rerank_sends_tei_payload_and_orders_results() -> None:
             "say about education?"
         ),
         "texts": [
-            "Unrelated passage.",
             (
+                "Document: Test Government Document\n\n"
+                "Unrelated passage."
+            ),
+            (
+                "Document: Test Government Document\n\n"
                 "The Constitution guarantees "
                 "education rights."
             ),
-            "Another partly relevant passage.",
+            (
+                "Document: Test Government Document\n\n"
+                "Another partly relevant passage."
+            ),
         ],
         "truncate": True,
         "raw_scores": False,
         "return_text": False,
     }
+
+
+def test_rerank_preserves_original_candidate_text() -> None:
+    """Title-aware inference must not alter returned retrieval evidence."""
+
+    service = HuggingFaceBGEReranker(
+        endpoint_url="https://reranker.example.com",
+        token="test-token",
+    )
+
+    mock_client = Mock()
+
+    mock_client.post.return_value = (
+        make_response(
+            [
+                {
+                    "index": 0,
+                    "score": 0.9,
+                },
+            ]
+        )
+    )
+
+    service._client = mock_client
+
+    candidate = make_result(
+        "point-1",
+        "Original evidence passage.",
+    )
+
+    results = service.rerank(
+        "test query",
+        [
+            candidate,
+        ],
+    )
+
+    assert len(
+        results
+    ) == 1
+
+    assert (
+        results[0].result
+        is candidate
+    )
+
+    assert (
+        results[0].result.chunk_text
+        == "Original evidence passage."
+    )
 
 
 def test_rerank_rejects_mismatched_response_count() -> None:

@@ -167,6 +167,23 @@ class HuggingFaceBGEReranker(
         return self._client
 
     @staticmethod
+    def _format_candidate_text(
+        candidate: RetrievalResult,
+    ) -> str:
+        """Build the evaluated source-aware reranker passage representation.
+
+        Evaluation showed that adding the document title helps the cross-encoder
+        respect explicit source intent while retaining the original evidence
+        passage. The richer contextual dense-embedding representation is not
+        passed to the reranker.
+        """
+
+        return (
+            f"Document: {candidate.title}\n\n"
+            f"{candidate.chunk_text}"
+        )
+
+    @staticmethod
     def _extract_status_code(
         exc: BaseException,
     ) -> int | None:
@@ -438,10 +455,16 @@ class HuggingFaceBGEReranker(
             candidates
         )
 
-        # Reranking must use the original evidence passage rather than the
-        # metadata-expanded representation used only for dense embeddings.
+        # Controlled evaluation showed that adding only the document title
+        # substantially improves source-sensitive reranking while preserving
+        # the original passage text for citations and downstream RAG stages.
+        #
+        # The richer metadata representation used for contextual dense
+        # embeddings remains retrieval-only and is not passed to BGE.
         texts = [
-            candidate.chunk_text
+            self._format_candidate_text(
+                candidate
+            )
             for candidate in candidate_list
         ]
 
