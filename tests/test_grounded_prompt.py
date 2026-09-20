@@ -469,3 +469,23 @@ def test_prompt_requires_evidence_citations() -> None:
         "Do not invent or alter evidence labels"
         in prompt
     )
+
+def test_prompt_requires_abstention_when_evidence_is_insufficient() -> None:
+    """The model should be told not to guess when evidence is inadequate."""
+
+    prompt = (
+        GroundedPromptBuilder()(
+            make_request()
+        )
+    )
+
+    assert (
+        "supplied evidence does not contain enough "
+        "information to answer the question"
+        in prompt
+    )
+
+    assert (
+        "supplied evidence is insufficient instead of guessing"
+        in prompt
+    )
