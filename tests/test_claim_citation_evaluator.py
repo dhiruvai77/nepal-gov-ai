@@ -15,11 +15,16 @@ def test_extracts_single_claim_and_citation() -> None:
     )
 
     assert len(claims) == 1
+
     assert (
         claims[0].claim_text
         == "Every citizen has the right to education."
     )
-    assert claims[0].evidence_ids == ("E1",)
+
+    assert claims[0].evidence_ids == (
+        "E1",
+    )
+
     assert claims[0].claim_index == 1
     assert claims[0].has_citation is True
 
@@ -31,8 +36,14 @@ def test_splits_multiple_english_sentences() -> None:
     )
 
     assert len(claims) == 2
-    assert claims[0].evidence_ids == ("E1",)
-    assert claims[1].evidence_ids == ("E2",)
+
+    assert claims[0].evidence_ids == (
+        "E1",
+    )
+
+    assert claims[1].evidence_ids == (
+        "E2",
+    )
 
 
 def test_splits_nepali_danda_sentences() -> None:
@@ -42,8 +53,14 @@ def test_splits_nepali_danda_sentences() -> None:
     )
 
     assert len(claims) == 2
-    assert claims[0].evidence_ids == ("E1",)
-    assert claims[1].evidence_ids == ("E2",)
+
+    assert claims[0].evidence_ids == (
+        "E1",
+    )
+
+    assert claims[1].evidence_ids == (
+        "E2",
+    )
 
 
 def test_multiple_citations_preserve_order_and_deduplicate() -> None:
@@ -69,9 +86,13 @@ def test_tracks_uncited_claim_units() -> None:
     )
 
     assert len(claims) == 2
+
     assert claims[0].evidence_ids == ()
     assert claims[0].has_citation is False
-    assert claims[1].evidence_ids == ("E1",)
+
+    assert claims[1].evidence_ids == (
+        "E1",
+    )
 
 
 def test_ignores_markdown_headings() -> None:
@@ -81,6 +102,7 @@ def test_ignores_markdown_headings() -> None:
     )
 
     assert len(claims) == 1
+
     assert (
         claims[0].claim_text
         == "Every citizen has access to education."
@@ -106,7 +128,10 @@ def test_cleans_markdown_list_markup() -> None:
 
     assert (
         claims[0].claim_text
-        == "State Liability: The State must provide education."
+        == (
+            "State Liability: "
+            "The State must provide education."
+        )
     )
 
 
@@ -120,7 +145,10 @@ def test_keeps_uncited_introductory_prose() -> None:
 
     assert (
         claims[0].claim_text
-        == "According to the Act, the following rights apply:"
+        == (
+            "According to the Act, "
+            "the following rights apply:"
+        )
     )
 
     assert claims[0].evidence_ids == ()
@@ -146,21 +174,41 @@ def test_mixed_claim_metrics() -> None:
     )
 
     assert len(claims) == 3
+
     assert metrics.total_claim_count == 3
     assert metrics.cited_claim_count == 2
     assert metrics.uncited_claim_count == 1
 
-    assert metrics.claim_citation_coverage == pytest.approx(
-        2 / 3
+    assert (
+        metrics.claim_citation_coverage
+        == pytest.approx(
+            2 / 3
+        )
     )
 
     assert metrics.citation_assignment_count == 2
-    assert metrics.valid_citation_assignment_count == 2
-    assert metrics.invalid_citation_assignment_count == 0
-    assert metrics.valid_reference_ratio == 1.0
-    assert metrics.unique_cited_evidence_count == 2
 
-    assert metrics.avg_citations_per_cited_claim == 1.0
+    assert (
+        metrics.valid_citation_assignment_count
+        == 2
+    )
+
+    assert (
+        metrics.invalid_citation_assignment_count
+        == 0
+    )
+
+    assert metrics.valid_reference_ratio == 1.0
+
+    assert (
+        metrics.unique_cited_evidence_count
+        == 2
+    )
+
+    assert (
+        metrics.avg_citations_per_cited_claim
+        == 1.0
+    )
 
 
 def test_invalid_citation_assignments_are_counted() -> None:
@@ -173,8 +221,17 @@ def test_invalid_citation_assignments_are_counted() -> None:
     )
 
     assert metrics.citation_assignment_count == 2
-    assert metrics.valid_citation_assignment_count == 1
-    assert metrics.invalid_citation_assignment_count == 1
+
+    assert (
+        metrics.valid_citation_assignment_count
+        == 1
+    )
+
+    assert (
+        metrics.invalid_citation_assignment_count
+        == 1
+    )
+
     assert metrics.valid_reference_ratio == 0.5
 
 
@@ -188,9 +245,18 @@ def test_no_citations_produce_zero_reference_metrics() -> None:
 
     assert metrics.total_claim_count == 1
     assert metrics.cited_claim_count == 0
-    assert metrics.claim_citation_coverage == 0.0
+
+    assert (
+        metrics.claim_citation_coverage
+        == 0.0
+    )
+
     assert metrics.valid_reference_ratio == 0.0
-    assert metrics.avg_citations_per_cited_claim == 0.0
+
+    assert (
+        metrics.avg_citations_per_cited_claim
+        == 0.0
+    )
 
 
 def test_persisted_row_uses_selected_evidence_namespace() -> None:
@@ -213,11 +279,18 @@ def test_persisted_row_uses_selected_evidence_namespace() -> None:
         }
     )
 
-    assert evaluation.question_id == "en_en_001"
-    assert len(evaluation.claims) == 2
+    assert (
+        evaluation.question_id
+        == "en_en_001"
+    )
+
+    assert len(
+        evaluation.claims
+    ) == 2
 
     assert (
-        evaluation.metrics.invalid_citation_assignment_count
+        evaluation.metrics
+        .invalid_citation_assignment_count
         == 1
     )
 
@@ -240,7 +313,9 @@ def test_persisted_row_prefers_generated_answer_text() -> None:
         }
     )
 
-    assert len(evaluation.claims) == 1
+    assert len(
+        evaluation.claims
+    ) == 1
 
     assert (
         evaluation.claims[0].claim_text
@@ -255,7 +330,9 @@ def test_persisted_row_rejects_missing_question_id() -> None:
     ):
         evaluate_persisted_rag_row(
             {
-                "generated_answer_text": "Claim [E1].",
+                "generated_answer_text": (
+                    "Claim [E1]."
+                ),
                 "selected_evidence": [
                     {
                         "evidence_id": "E1",
@@ -268,14 +345,92 @@ def test_persisted_row_rejects_missing_question_id() -> None:
 def test_persisted_row_rejects_invalid_selected_evidence() -> None:
     with pytest.raises(
         ValueError,
-        match="selected_evidence entries",
+        match=(
+            "selected_evidence entries"
+        ),
     ):
         evaluate_persisted_rag_row(
             {
                 "question_id": "q1",
-                "generated_answer_text": "Claim [E1].",
+                "generated_answer_text": (
+                    "Claim [E1]."
+                ),
                 "selected_evidence": [
                     "E1",
                 ],
             }
         )
+
+
+def test_ignores_standalone_ascii_numbered_list_marker() -> None:
+    claims = extract_claim_citation_units(
+        "1.\n"
+        "Education is protected [E1]."
+    )
+
+    assert len(claims) == 1
+
+    assert (
+        claims[0].claim_text
+        == "Education is protected."
+    )
+
+    assert claims[0].evidence_ids == (
+        "E1",
+    )
+
+
+def test_ignores_standalone_nepali_numbered_list_marker() -> None:
+    claims = extract_claim_citation_units(
+        "१.\n"
+        "शिक्षाको हक सुरक्षित छ [E1]।"
+    )
+
+    assert len(claims) == 1
+
+    assert (
+        claims[0].claim_text
+        == "शिक्षाको हक सुरक्षित छ।"
+    )
+
+    assert claims[0].evidence_ids == (
+        "E1",
+    )
+
+
+def test_removes_nepali_number_prefix_from_claim() -> None:
+    claims = extract_claim_citation_units(
+        "२. प्रत्येक व्यक्तिलाई स्वास्थ्यसम्बन्धी "
+        "जानकारी पाउने हक हुनेछ [E1]।"
+    )
+
+    assert len(claims) == 1
+
+    assert (
+        claims[0].claim_text
+        == (
+            "प्रत्येक व्यक्तिलाई स्वास्थ्यसम्बन्धी "
+            "जानकारी पाउने हक हुनेछ।"
+        )
+    )
+
+    assert claims[0].evidence_ids == (
+        "E1",
+    )
+
+
+def test_numeric_factual_claim_is_not_removed() -> None:
+    claims = extract_claim_citation_units(
+        "The literacy rate was 76.3% [E1]."
+    )
+
+    assert len(claims) == 1
+
+    assert (
+        claims[0].claim_text
+        == "The literacy rate was 76.3%."
+    )
+
+    assert claims[0].evidence_ids == (
+        "E1",
+    )

@@ -26,7 +26,11 @@ SENTENCE_BOUNDARY_PATTERN = re.compile(
 )
 
 LIST_PREFIX_PATTERN = re.compile(
-    r"^\s*(?:[-+*]\s+|\d+[.)]\s+)"
+    r"^\s*(?:[-+*]\s+|[0-9०-९]+[.)।:]\s+)"
+)
+
+LIST_MARKER_ONLY_PATTERN = re.compile(
+    r"^\s*(?:[-+*]|[0-9०-९]+[.)।:]?)\s*$"
 )
 
 MARKDOWN_HEADING_PATTERN = re.compile(
@@ -122,7 +126,7 @@ def _deduplicate_preserving_order(
 def _remove_list_prefix(
     text: str,
 ) -> str:
-    """Remove one Markdown list prefix from a line."""
+    """Remove one Markdown or multilingual numbered-list prefix."""
 
     return LIST_PREFIX_PATTERN.sub(
         "",
@@ -141,6 +145,18 @@ def _is_nonclaim_line(
     )
 
     if not stripped:
+        return True
+
+    # Standalone list markers such as:
+    #
+    # 1.
+    # २.
+    # -
+    #
+    # are formatting artifacts rather than semantic claims.
+    if LIST_MARKER_ONLY_PATTERN.fullmatch(
+        stripped
+    ):
         return True
 
     if HORIZONTAL_RULE_PATTERN.fullmatch(
@@ -247,7 +263,10 @@ def extract_claim_citation_units(
 
     English sentence punctuation and the Nepali danda are supported.
 
-    Pure Markdown headings are ignored. Bullet text is retained as prose.
+    Pure Markdown headings and standalone list markers are ignored.
+    Bullet and numbered-list prefixes are removed while their prose content is
+    retained.
+
     Citation IDs are removed from `claim_text` but preserved structurally in
     `evidence_ids`.
     """
@@ -290,6 +309,12 @@ def extract_claim_citation_units(
             )
 
             if not raw_text:
+                continue
+
+            # A standalone marker can also appear after sentence splitting.
+            if LIST_MARKER_ONLY_PATTERN.fullmatch(
+                raw_text
+            ):
                 continue
 
             claim_text = (
