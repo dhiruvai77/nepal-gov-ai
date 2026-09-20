@@ -47,57 +47,66 @@ V1 domains:
 
 ## Current Milestone
 
-**Generation service abstraction completed locally; Gemini generation provider is the next milestone**
+**Gemini generation provider completed locally; grounded prompt construction is the next milestone**
 
-The production RAG architecture now has independently testable boundaries for:
+The project now has independently testable boundaries for:
 
 * multilingual first-stage retrieval
 * title-aware multilingual reranking
 * fixed top-5 context selection
 * provider-independent generation
+* Gemini generation transport
 
-The new generation abstraction is implemented through:
+The Gemini provider is implemented through:
 
-`src/generation/base.py`
+`src/generation/gemini_service.py`
 
-It introduces:
+It sits behind the generic:
 
-* `GenerationRequest`
-* `GenerationResult`
-* `GenerationService`
-* generation-request validation
-* generation-result validation
+`GenerationService`
 
-The abstraction consumes the already selected evidence and does not repeat:
+interface.
 
-* retrieval
-* reranking
-* context selection
+The implementation includes:
 
-The selected evidence objects remain intact, including their original passage text and citation provenance.
+* Gemini API credential resolution
+* explicit model configuration
+* explicit timeout configuration
+* lazy SDK client construction
+* injected fake clients for unit testing
+* injected prompt-builder dependency
+* request execution
+* provider error isolation
+* response parsing
+* conversion to `GenerationResult`
+* provider/model provenance
+* client cleanup
 
-The generic generation layer intentionally does **not** yet contain:
+The provider uses:
 
-* Gemini-specific API behavior
-* Gemini authentication/configuration
-* grounded prompt construction
-* citation rendering
-* citation validation
-* insufficient-evidence policy
-* refusal behavior
-* final RAG orchestration
+`google-genai==2.24.0`
 
-Latest local validation:
+Selected initial model:
 
-`212 passed`
+`gemini-3.8-flash`
+
+Credential environment variable:
+
+`GEMINI_API_KEY`
+
+The provider intentionally does **not** yet define the production grounded prompt.
+
+The next milestone is:
+
+**Grounded Prompt Construction**
+
+Latest full local test suite:
+
+`232 passed`
 
 Latest whitespace/error validation:
 
 `git diff --check` — clean
-
-The next milestone after committing this abstraction is:
-
-**Gemini Generation Provider**
 
 ---
 
@@ -105,27 +114,30 @@ The next milestone after committing this abstraction is:
 
 Latest committed milestone on `main`:
 
-`e9642ee — Add evaluated context selection pipeline`
+`e0332a2 — Add generation service abstraction`
 
-Previous production reranking milestone:
+Previous milestones:
+
+`e9642ee — Add evaluated context selection pipeline`
 
 `4c38b3b — Promote title-aware multilingual reranking`
 
-The current Generation Service abstraction is implemented locally but has not yet been committed at this checkpoint.
+Current Gemini provider milestone is fully implemented and locally validated but has not yet been committed at this checkpoint.
 
-Current uncommitted milestone files:
+Current expected local milestone changes:
 
-* `src/generation/base.py`
-* `tests/test_generation_base.py`
+* `requirements.txt`
+* `src/generation/gemini_service.py`
+* `tests/test_gemini_generation_service.py`
 * `docs/project_status.md`
 
 Latest full local test suite:
 
+`232 passed`
+
+Previous committed Generation Service abstraction baseline:
+
 `212 passed`
-
-Previous Context Selection milestone test suite:
-
-`199 passed`
 
 Latest whitespace/error validation:
 
@@ -138,18 +150,18 @@ Development environment:
 * Windows CMD
 * Qdrant via Docker
 * Hosted Hugging Face inference
+* Gemini Developer API
 * Smart App Control remains enabled
 
 Important:
 
 * Do not disable Smart App Control.
 * Avoid WSL unless explicitly requested.
-* Do not expose `HF_TOKEN`.
-* Do not expose `HF_RERANKER_ENDPOINT_URL`.
+* Never expose API keys in chat.
+* Never commit API keys.
 * Do not commit hosted endpoint URLs or secrets.
 * Qdrant development storage is persisted through Docker Compose.
-* Hugging Face endpoint configuration remains local.
-* Do not rerun expensive OCR or vector backfills unless a corpus or representation change actually requires it.
+* Do not rerun expensive OCR or vector backfills unless required.
 
 ---
 
@@ -176,7 +188,7 @@ Do not rerun OCR or ingestion unless corpus changes require it.
 
 ## Chunking
 
-Current chunking implementation:
+Current implementation:
 
 `src/chunking/chunk_documents.py`
 
@@ -191,9 +203,9 @@ Baseline chunk parameters:
 
 Chunks preserve provenance including:
 
-* `chunk_id`
-* `document_id`
-* document title
+* chunk ID
+* document ID
+* title
 * organization
 * category
 * document type
@@ -208,16 +220,14 @@ Chunks preserve provenance including:
 * subsection
 * article number
 * article title
-* `chunk_index`
-* original `chunk_text`
-* `token_count`
+* chunk index
+* original chunk text
+* tokenizer-derived token count
 * extraction method
 
 The current baseline is not yet a structure-aware parent/child chunking system.
 
 Adjacent chunks may intentionally share content because of the configured overlap.
-
-This became important during context-selection evaluation.
 
 ---
 
@@ -242,46 +252,25 @@ Instruct: <instruction>
 Query: <query>
 ```
 
-Passage representations stored in Qdrant:
+Stored Qdrant representations:
 
 * `dense`
 
   * original raw passage embedding
-
 * `dense_contextual`
 
   * metadata-enriched passage embedding
-
 * `bm25`
 
   * sparse lexical representation
 
-Raw passage text remains unchanged in the Qdrant payload.
-
----
-
-## Contextual Embedding Representation
-
-The contextual dense passage representation contains available metadata such as:
-
-* document title
-* organization
-* document type
-* section
-* subsection
-* article number
-* article title
-* original passage text
-
-All `2,276` indexed points were successfully backfilled with:
+Production semantic retrieval uses:
 
 `dense_contextual`
 
-Raw dense vectors and BM25 vectors were preserved.
+Raw dense remains stored for controlled diagnostics.
 
-The contextual representation is used for first-stage semantic retrieval.
-
-It is **not** passed in full to the reranker.
+Original passage text remains unchanged.
 
 ---
 
@@ -289,21 +278,19 @@ It is **not** passed in full to the reranker.
 
 Qdrant stores the complete chunk payload.
 
-Important fields already present in indexed payloads include:
+Important downstream fields include:
 
 * `chunk_index`
 * `token_count`
 
-These fields were originally not exposed through `RetrievalResult`.
+These were already stored in Qdrant before Context Selection but were not originally exposed through `RetrievalResult`.
 
-During the Context Selection milestone, `RetrievalResult` was extended with optional:
+`RetrievalResult` now includes optional:
 
 ```python
 chunk_index: int | None = None
 token_count: int | None = None
 ```
-
-and `normalize_search_result()` now preserves those payload values.
 
 No reingestion was required.
 
@@ -311,15 +298,13 @@ No OCR rerun was required.
 
 No vector backfill was required.
 
-These fields are now available downstream for:
+These fields now support:
 
 * context selection
-* token-cost measurement
+* token-cost analysis
 * adjacency diagnostics
 * generation diagnostics
 * future context-management strategies
-
-They remain optional for backward compatibility.
 
 ---
 
@@ -327,13 +312,13 @@ They remain optional for backward compatibility.
 
 ### Same-language retrieval
 
-English query -> English evidence:
+English -> English:
 
 ```text
 dense_contextual + BM25 -> Reciprocal Rank Fusion
 ```
 
-Nepali query -> Nepali evidence:
+Nepali -> Nepali:
 
 ```text
 dense_contextual + BM25 -> Reciprocal Rank Fusion
@@ -341,13 +326,13 @@ dense_contextual + BM25 -> Reciprocal Rank Fusion
 
 ### Cross-lingual retrieval
 
-English query -> Nepali evidence:
+English -> Nepali:
 
 ```text
 dense_contextual only
 ```
 
-Nepali query -> English evidence:
+Nepali -> English:
 
 ```text
 dense_contextual only
@@ -376,8 +361,6 @@ The selected reranking pipeline retrieves:
 `20`
 
 first-stage candidates before cross-encoder reranking.
-
-This matches the candidate depth used during controlled reranker evaluation.
 
 ---
 
@@ -408,89 +391,63 @@ Primary evidence is deliberately conservative.
 
 `relevant_chunk_ids` contains the broader set of manually verified useful evidence.
 
-This distinction is important when interpreting reranker and context-selection regressions because a primary chunk may move downward while another manually verified relevant passage remains highly ranked.
-
----
-
-## Current Fixed-Depth First-Stage Baseline
-
-Retrieval depth:
-
-`20`
-
-Each query is retrieved once.
-
-Metrics at @5, @10, and @20 are calculated from the same ranked candidate list.
-
-The current baseline was reproduced independently by:
-
-* `src.evaluation.run_retrieval_evaluation`
-* the reranker-comparison benchmark
-
-### @5
-
-* Hit Rate: `0.767`
-* MRR: `0.505`
-* Recall: `0.686`
-
-Language slices:
-
-| Slice    | Hit@5 | MRR@5 | Recall@5 |
-| -------- | ----: | ----: | -------: |
-| EN -> EN | 0.583 | 0.458 |    0.507 |
-| NE -> NE | 1.000 | 0.672 |    0.889 |
-| EN -> NE | 0.833 | 0.403 |    0.861 |
-| NE -> EN | 0.833 | 0.533 |    0.667 |
-
-### @10
-
-* Hit Rate: `0.900`
-* MRR: `0.524`
-* Recall: `0.856`
-
-### @20
-
-* Hit Rate: `0.900`
-* MRR: `0.524`
-* Recall: `0.886`
-
-Persistent primary-evidence misses at @20:
+Persistent first-stage primary-evidence misses at top-20:
 
 * `en_en_011`
 * `en_ne_002`
 * `ne_en_005`
 
-These remain **first-stage retrieval misses**.
+These cannot be recovered downstream because the required evidence does not enter the reranker candidate pool.
 
-A reranker, context selector, or generator cannot recover evidence that does not enter the top-20 first-stage candidate pool.
+---
+
+## First-Stage Retrieval Baseline
+
+### @5
+
+* Hit: `0.767`
+* MRR: `0.505`
+* Recall: `0.686`
+
+### @10
+
+* Hit: `0.900`
+* MRR: `0.524`
+* Recall: `0.856`
+
+### @20
+
+* Hit: `0.900`
+* MRR: `0.524`
+* Recall: `0.886`
+
+These are the validated current baseline values.
 
 ---
 
 ## Historical Retrieval Metric Correction
 
-An earlier project-status snapshot recorded fixed-depth MRR values of:
+An earlier project-status snapshot recorded:
 
-* `0.522` @5
-* `0.541` @10
-* `0.541` @20
+* `0.522` MRR @5
+* `0.541` MRR @10
+* `0.541` MRR @20
 
-A fresh official evaluation and the independent reranker benchmark both reproduced:
+Fresh official evaluation and the independent reranker benchmark both reproduced:
 
 * `0.505` @5
 * `0.524` @10
 * `0.524` @20
 
-Hit Rate, Recall, and persistent @20 misses remained unchanged.
+The reproduced values are the validated baseline.
 
-Therefore the freshly reproduced values are the validated baseline.
-
-The cause of the earlier small MRR difference was not established and should not be inferred without evidence.
+The reason for the earlier small difference was not established and should not be inferred without evidence.
 
 ---
 
-## Retrieval Experiments Already Completed
+## Retrieval Experiments Completed
 
-Completed experiments include:
+Completed retrieval/ranking experiments include:
 
 * raw dense retrieval
 * BM25 retrieval
@@ -502,7 +459,7 @@ Completed experiments include:
 * production-routing raw vs contextual A/B
 * raw + contextual dual-dense fusion
 * plain BGE reranking
-* document-title-aware BGE reranking
+* title-aware BGE reranking
 * fixed-count context selection
 * token-budget context selection
 * adjacent-chunk-aware context selection
@@ -517,13 +474,13 @@ Therefore:
 
 ---
 
-## Reranker Architecture
+## Production Reranking
 
 Provider-independent abstraction:
 
 `src/reranking/base.py`
 
-Hosted TEI provider:
+Hosted provider:
 
 `src/reranking/hf_bge_reranker.py`
 
@@ -531,256 +488,45 @@ Production integration:
 
 `src/retrieval/run_reranked_retrieval.py`
 
-Evaluation:
-
-* `src/evaluation/compare_reranked_retrieval.py`
-* `src/evaluation/compare_reranker_inputs.py`
-
-Tests include:
-
-* `tests/test_reranker_base.py`
-* `tests/test_hf_bge_reranker.py`
-* `tests/test_compare_reranked_retrieval.py`
-* `tests/test_compare_reranker_inputs.py`
-* `tests/test_run_reranked_retrieval.py`
-
 Selected model:
 
 `BAAI/bge-reranker-v2-m3`
 
-The reranker output preserves:
-
-* original `RetrievalResult`
-* original `chunk_text`
-* citation metadata
-* reranker score
-* original first-stage rank
-
----
-
-## Hugging Face Reranker Endpoint
-
-Inference engine:
-
-**Text Embeddings Inference (TEI)**
-
-Model:
-
-`BAAI/bge-reranker-v2-m3`
-
-Authentication:
-
-Private
-
-Autoscaling:
-
-* minimum replicas: `0`
-* maximum replicas: `1`
-* scale-to-zero: enabled
-* idle timeout: 15 minutes
-
-Deployment history:
-
-* 4 GB CPU instance -> failed with memory limit exceeded
-* 8 GB CPU instance -> failed with memory limit exceeded
-* 16 GB instance -> running successfully
-
-Local configuration:
-
-`HF_RERANKER_ENDPOINT_URL`
-
-Authentication token:
-
-`HF_TOKEN`
-
-Neither value is committed to Git.
-
----
-
-## Live Reranker Smoke Test
-
-A minimal two-passage live TEI smoke test was completed successfully.
-
-The test verified:
-
-* `/rerank` connectivity
-* private endpoint authentication
-* TEI response parsing
-* returned `index`
-* returned `score`
-* candidate mapping
-* ranking order
-* provider integration
-
-Observed example result:
+Selected reranker input:
 
 ```text
-Relevant passage:
-score ≈ 0.953
+Document: <title>
 
-Irrelevant passage:
-score ≈ 0.000016
-```
-
-The relevant passage was correctly ranked first.
-
-Result:
-
-**PASSED**
-
-This cleared the live-inference gate before full benchmark execution.
-
----
-
-## Plain BGE Reranking Benchmark
-
-Initial reranker input:
-
-```text
 <original chunk_text>
 ```
 
-The exact same first-stage top-20 candidates were reranked.
+The original evidence text remains unchanged.
+
+---
+
+## Title-Aware BGE Results
 
 ### @5
-
-First-stage:
-
-* Hit: `0.767`
-* MRR: `0.505`
-* Recall: `0.686`
-
-Plain BGE:
 
 * Hit: `0.833`
-* MRR: `0.629`
-* Recall: `0.783`
-
-Changes:
-
-* Hit: `+0.067`
-* MRR: `+0.124`
-* Recall: `+0.097`
-
-Recovered primary-evidence questions @5:
-
-* `en_en_002`
-* `en_en_003`
-* `en_en_009`
-
-Plain-BGE primary regression @5:
-
-* `ne_ne_002`
+* MRR: `0.697`
+* Recall: `0.833`
 
 ### @10
 
-Plain BGE:
-
-* Hit: `0.867`
-* MRR: `0.634`
-* Recall: `0.853`
-
-A genuine source-sensitive regression was observed:
-
-`en_en_007`
-
-The question explicitly requested evidence from the Constitution of Nepal, but plain BGE promoted semantically related Public Health Service Act passages above the constitutional evidence.
-
-The primary Constitution passage moved:
-
-```text
-baseline rank 7
--> plain BGE rank 12
-```
-
-This motivated a controlled source-aware reranker-input experiment.
-
----
-
-## Title-Aware Reranker Experiment
-
-Hypothesis:
-
-> Adding only the document title may help BGE distinguish semantically similar passages from different government documents and better respect explicit source intent.
-
-Experimental representation:
-
-```text
-Document: <document title>
-
-<original chunk_text>
-```
-
-The full contextual embedding representation was intentionally **not** used.
-
-The same first-stage top-20 candidate pools were used for:
-
-1. baseline first-stage ranking
-2. plain BGE
-3. title-aware BGE
-
-This kept the experiment controlled.
-
----
-
-## Selected Title-Aware BGE Results
-
-### @5
-
-| Metric | First-stage | Plain BGE | Title-aware BGE |
-| ------ | ----------: | --------: | --------------: |
-| Hit    |       0.767 |     0.833 |       **0.833** |
-| MRR    |       0.505 |     0.629 |       **0.697** |
-| Recall |       0.686 |     0.783 |       **0.833** |
-
-Language slices for title-aware BGE:
-
-| Slice    | Hit@5 | MRR@5 | Recall@5 |
-| -------- | ----: | ----: | -------: |
-| EN -> EN | 0.833 | 0.639 |    0.792 |
-| NE -> NE | 1.000 | 0.833 |    1.000 |
-| EN -> NE | 0.833 | 0.708 |    0.861 |
-| NE -> EN | 0.667 | 0.667 |    0.722 |
-
-### @10
-
-| Metric | First-stage | Plain BGE | Title-aware BGE |
-| ------ | ----------: | --------: | --------------: |
-| Hit    |       0.900 |     0.867 |       **0.900** |
-| MRR    |       0.524 |     0.634 |       **0.706** |
-| Recall |       0.856 |     0.853 |       **0.869** |
+* Hit: `0.900`
+* MRR: `0.706`
+* Recall: `0.869`
 
 ### @20
 
-| Metric | First-stage | Plain BGE | Title-aware BGE |
-| ------ | ----------: | --------: | --------------: |
-| Hit    |       0.900 |     0.900 |       **0.900** |
-| MRR    |       0.524 |     0.636 |       **0.706** |
-| Recall |       0.886 |     0.886 |       **0.886** |
+* Hit: `0.900`
+* MRR: `0.706`
+* Recall: `0.886`
 
-Because reranking receives the same fixed top-20 candidate pool:
-
-* Hit@20 is expected to remain unchanged.
-* Recall@20 is expected to remain unchanged.
-* MRR measures whether relevant evidence is moved closer to the top.
-
-Title-aware BGE improved overall MRR@20 from:
-
-`0.524 -> 0.706`
-
-without changing candidate membership.
-
----
-
-## Source-Aware Reranking Findings
-
-The most important source-sensitive case:
+Important source-sensitive case:
 
 `en_en_007`
-
-Question:
-
-`What does the Constitution of Nepal guarantee regarding the right to health?`
 
 Primary evidence rank:
 
@@ -790,138 +536,11 @@ Plain BGE: 12
 Title-aware BGE: 2
 ```
 
-Adding the document title corrected the source-confusion failure.
-
-Another diagnostic case:
-
-`ne_ne_002`
-
-Primary rank:
-
-```text
-First-stage: 2
-Plain BGE: 7
-Title-aware BGE: 2
-```
-
-The title-aware representation restored the primary passage while also ranking broader relevant evidence strongly.
+The title-aware representation corrected documented source confusion.
 
 ---
 
-## Interpretation of Remaining Reranker @5 Regressions
-
-Title-aware BGE showed two primary-evidence Hit@5 regressions relative to plain BGE:
-
-* `en_en_002`
-* `ne_en_003`
-
-Both were manually inspected.
-
-### `en_en_002`
-
-Primary Constitution evidence moved outside top 5.
-
-However, another manually annotated relevant passage from:
-
-**Compulsory and Free Education Act 2075**
-
-remained at rank 1.
-
-The query asks broadly:
-
-`What does the law say about free and compulsory education?`
-
-Therefore the top-ranked evidence remains directly useful even though the conservative primary-evidence metric records a miss.
-
-### `ne_en_003`
-
-The designated primary emergency-health passage moved to rank 6.
-
-However, two other manually annotated relevant Public Health Service Act passages were ranked:
-
-* rank 1
-* rank 2
-
-Therefore useful manually verified evidence remained at the top of the result list.
-
-Conclusion:
-
-These cases primarily expose the conservativeness of the single-primary-passage metric rather than demonstrating a clear user-facing retrieval failure.
-
-The evaluation dataset should **not** be modified retrospectively merely to improve the reranker score.
-
----
-
-## Production Reranking Decision
-
-Selected model:
-
-`BAAI/bge-reranker-v2-m3`
-
-Selected passage representation:
-
-```text
-Document: <title>
-
-<chunk_text>
-```
-
-Reasons:
-
-1. Strong improvement over first-stage retrieval.
-2. Higher MRR than plain BGE at every evaluated cutoff.
-3. Higher Recall@5 than plain BGE.
-4. Removes the plain-BGE Hit@10 regression.
-5. Corrects documented source-confusion behavior.
-6. Works across English and Nepali retrieval slices.
-7. Preserves original passage text and citation metadata.
-8. Requires only one additional metadata field rather than the complete contextual dense representation.
-
-Plain passage-only BGE is **not** the selected production configuration.
-
----
-
-## Production Reranking Pipeline
-
-Production first-stage retrieval remains independently callable through:
-
-`src/retrieval/run_hybrid_retrieval.py`
-
-Reranking is added separately through:
-
-`src/retrieval/run_reranked_retrieval.py`
-
-Selected pipeline:
-
-```text
-Query
-  ->
-Language-aware first-stage retrieval
-  ->
-same-language:
-dense_contextual + BM25 -> RRF
-  OR
-cross-lingual:
-dense_contextual only
-  ->
-top-20 candidates
-  ->
-BAAI/bge-reranker-v2-m3
-  ->
-title-aware passage representation
-  ->
-reranked candidate pool
-```
-
-The reranking stage defaults to returning the complete reranked candidate pool.
-
-It does not decide how many passages reach generation.
-
-That responsibility belongs to Context Selection.
-
----
-
-## Context Selection Architecture
+## Production Context Selection
 
 Provider-independent abstraction:
 
@@ -931,7 +550,7 @@ Production selector:
 
 `src/context_selection/fixed_top_k.py`
 
-Evaluated experimental selectors:
+Experimental selectors:
 
 * `src/context_selection/token_budget.py`
 * `src/context_selection/adjacent_chunk.py`
@@ -940,232 +559,57 @@ Production integration:
 
 `src/context_selection/run_context_selection.py`
 
-Evaluation:
+Selected production strategy:
 
-`src/evaluation/compare_context_selection.py`
-
-Tests include:
-
-* `tests/test_context_selector_base.py`
-* `tests/test_token_budget_context_selector.py`
-* `tests/test_adjacent_chunk_context_selector.py`
-* `tests/test_compare_context_selection.py`
-* `tests/test_run_context_selection.py`
-
-The selector consumes:
-
-`RerankedResult`
-
-It does not repeat retrieval or reranking.
-
-The production reranker continues returning its complete top-20 candidate pool.
-
-Context selection is applied only afterward.
+**Fixed top-5**
 
 ---
 
-## Context Selection Evaluation Methodology
+## Context Selection Results
 
-The same manually verified 30-question multilingual benchmark was used.
+| Strategy             |       Hit |       MRR |    Recall | Avg passages | Avg tokens | AdjPairs |
+| -------------------- | --------: | --------: | --------: | -----------: | ---------: | -------: |
+| Top-3                |     0.800 |     0.689 |     0.761 |         3.00 |     1011.1 |     0.40 |
+| Top-5                | **0.833** | **0.697** | **0.833** |         5.00 |     1703.9 |     1.07 |
+| Top-8                |     0.867 |     0.703 |     0.853 |         8.00 |     2669.1 |     2.23 |
+| Budget 1400          |     0.800 |     0.689 |     0.761 |         3.63 |     1214.9 |     0.63 |
+| Budget 1800          |     0.833 |     0.697 |     0.822 |         4.87 |     1634.4 |     1.07 |
+| Budget 2200          |     0.833 |     0.697 |     0.842 |         5.97 |     2026.2 |     1.47 |
+| Adjacent-aware top-5 |     0.767 |     0.675 |     0.756 |         5.00 |     1702.2 |     0.00 |
 
-Every question was:
+Production decision:
 
-1. retrieved once to a fixed depth of 20
-2. reranked once using title-aware BGE
-3. cached as a complete reranked candidate pool
-4. passed through each context-selection strategy
+**Fixed top-5**
 
-Therefore selectors were compared against the exact same retrieval and reranking results.
+Token budgeting did not improve the measured quality/cost tradeoff.
 
-The hosted BGE endpoint was not invoked independently for each selector.
-
-Metrics included:
-
-* Hit Rate
-* MRR
-* Recall
-* average selected passages
-* average source-passage tokens
-* average adjacent same-document chunk pairs
+Aggressive adjacency suppression degraded evidence quality.
 
 ---
 
-## Fixed Top-k Context Selection Results
+## Context Selection Interpretation
 
-### Fixed top-3
+Top-8 improved:
 
-Overall:
+* Hit by `+0.034`
+* MRR by `+0.006`
+* Recall by `+0.020`
 
-* Hit: `0.800`
-* MRR: `0.689`
-* Recall: `0.761`
-* average passages: `3.00`
-* average tokens: `1011.1`
-* average adjacent pairs: `0.40`
-
-### Fixed top-5
-
-Overall:
-
-* Hit: `0.833`
-* MRR: `0.697`
-* Recall: `0.833`
-* average passages: `5.00`
-* average tokens: `1703.9`
-* average adjacent pairs: `1.07`
-
-Language slices:
-
-| Slice    |   Hit |   MRR | Recall | Passages | Tokens | AdjPairs |
-| -------- | ----: | ----: | -----: | -------: | -----: | -------: |
-| EN -> EN | 0.833 | 0.639 |  0.792 |     5.00 | 1722.5 |     1.58 |
-| NE -> NE | 1.000 | 0.833 |  1.000 |     5.00 | 1710.7 |     0.67 |
-| EN -> NE | 0.833 | 0.708 |  0.861 |     5.00 | 1652.0 |     0.67 |
-| NE -> EN | 0.667 | 0.667 |  0.722 |     5.00 | 1711.7 |     0.83 |
-
-### Fixed top-8
-
-Overall:
-
-* Hit: `0.867`
-* MRR: `0.703`
-* Recall: `0.853`
-* average passages: `8.00`
-* average tokens: `2669.1`
-* average adjacent pairs: `2.23`
-
-Summary:
-
-| Strategy |       Hit |       MRR |    Recall | Avg passages | Avg tokens | AdjPairs |
-| -------- | --------: | --------: | --------: | -----------: | ---------: | -------: |
-| Top-3    |     0.800 |     0.689 |     0.761 |         3.00 |     1011.1 |     0.40 |
-| Top-5    | **0.833** | **0.697** | **0.833** |         5.00 |     1703.9 |     1.07 |
-| Top-8    |     0.867 |     0.703 |     0.853 |         8.00 |     2669.1 |     2.23 |
-
-Top-8 recovers additional evidence but requires approximately 57% more source-passage tokens than top-5.
-
-The marginal gain from top-5 to top-8 is:
-
-* Hit: `+0.034`
-* MRR: `+0.006`
-* Recall: `+0.020`
-
-for approximately:
+relative to top-5, but required approximately:
 
 `+965`
 
 average source-passage tokens.
 
-Top-5 therefore provides the preferred cost/quality balance for the initial generation baseline.
+The strict-prefix token budget did not outperform fixed top-5.
 
----
-
-## Token-Budget Context Selection Experiment
-
-A strict-prefix token-budget selector was implemented.
-
-The selector:
-
-1. preserves reranker order
-2. adds passages sequentially
-3. stops when the next ranked passage would exceed the configured budget
-4. does not allow lower-ranked shorter passages to leapfrog higher-ranked evidence
-
-Evaluated budgets:
-
-* `1400`
-* `1800`
-* `2200`
-
-Results:
-
-| Strategy    |   Hit |   MRR | Recall | Avg passages | Avg tokens | AdjPairs |
-| ----------- | ----: | ----: | -----: | -----------: | ---------: | -------: |
-| Budget 1400 | 0.800 | 0.689 |  0.761 |         3.63 |     1214.9 |     0.63 |
-| Budget 1800 | 0.833 | 0.697 |  0.822 |         4.87 |     1634.4 |     1.07 |
-| Budget 2200 | 0.833 | 0.697 |  0.842 |         5.97 |     2026.2 |     1.47 |
-
-### Interpretation
-
-Budget 1400:
-
-* same Hit as top-3
-* same MRR as top-3
-* same Recall as top-3
-* uses more average tokens than top-3
-
-Therefore budget 1400 is dominated by fixed top-3.
-
-Budget 1800:
-
-* same Hit as fixed top-5
-* same MRR as fixed top-5
-* Recall decreases from `0.833` to `0.822`
-* saves only about `70` average tokens
-
-Budget 2200:
-
-* same Hit as fixed top-5
-* same MRR as fixed top-5
-* Recall improves slightly to `0.842`
-* average token use rises to `2026.2`
-
-Conclusion:
-
-**The tested strict-prefix token-budget strategy is not selected for production.**
-
-It remains in the repository as an evaluated experimental selector.
-
----
-
-## Adjacent-Chunk Redundancy Experiment
-
-Because baseline chunking uses approximately 60 tokens of overlap, adjacent chunks from the same document were investigated as a possible source of wasted generation context.
-
-An adjacent-aware selector was implemented that:
-
-* preserves reranker order
-* rejects chunks directly adjacent to an already selected chunk from the same document
-* continues further down the ranked list to fill the requested context count
-* allows non-adjacent passages from the same document
-* avoids assuming redundancy when `chunk_index` is missing
-
-### Fixed top-5 baseline
-
-* Hit: `0.833`
-* MRR: `0.697`
-* Recall: `0.833`
-* average passages: `5.00`
-* average tokens: `1703.9`
-* average adjacent pairs: `1.07`
-
-### Adjacent-aware top-5
-
-* Hit: `0.767`
-* MRR: `0.675`
-* Recall: `0.756`
-* average passages: `5.00`
-* average tokens: `1702.2`
-* average adjacent pairs: `0.00`
-
-Language slices:
-
-| Slice    |   Hit |   MRR | Recall | Passages | Tokens | AdjPairs |
-| -------- | ----: | ----: | -----: | -------: | -----: | -------: |
-| EN -> EN | 0.667 | 0.583 |  0.639 |     5.00 | 1737.8 |     0.00 |
-| NE -> NE | 1.000 | 0.833 |  1.000 |     5.00 | 1729.8 |     0.00 |
-| EN -> NE | 0.833 | 0.708 |  0.861 |     5.00 | 1611.3 |     0.00 |
-| NE -> EN | 0.667 | 0.667 |  0.639 |     5.00 | 1694.2 |     0.00 |
-
-### Interpretation
-
-The selector successfully removed all measured adjacent chunk pairs:
+Adjacent-aware top-5 reduced average adjacent pairs:
 
 ```text
 1.07 -> 0.00
 ```
 
-However, evidence quality fell materially:
+but degraded:
 
 ```text
 Hit:
@@ -1178,91 +622,13 @@ Recall:
 0.833 -> 0.756
 ```
 
-The largest degradation occurred in English -> English retrieval.
-
-This indicates that adjacent chunks in the current corpus frequently contain complementary useful evidence rather than merely duplicated overlap.
-
-Therefore:
-
-**Do not suppress adjacent chunks in production context selection without new evaluation evidence.**
-
----
-
-## Production Context Selection Decision
-
-Selected strategy:
-
-**Fixed top-5**
-
-Selected pipeline behavior:
-
-```text
-Reranked top-20 candidate pool
-  ->
-preserve reranker order
-  ->
-select first 5 passages
-  ->
-generation context
-```
-
-Reasons:
-
-1. Strong evidence coverage.
-2. Strong reranker MRR is preserved.
-3. Substantially lower context cost than top-8.
-4. Simpler and more deterministic than token budgeting.
-5. Token-budget experiments did not improve the measured quality/cost tradeoff.
-6. Aggressive adjacent-chunk suppression degraded evidence quality.
-7. Original passage text and citation metadata remain unchanged.
-8. Retrieval, reranking, and context selection remain independently testable.
-9. Five passages provide a practical initial generation context.
-10. The strategy can be reevaluated later with generation-level metrics.
-
-Experimental selectors remain available for future controlled comparisons.
-
----
-
-## Production Context Selection Integration
-
-Production integration:
-
-`src/context_selection/run_context_selection.py`
-
-Default context count:
-
-`5`
-
-Production orchestration:
-
-```text
-run_context_selection()
-  ->
-run_reranked_retrieval(
-    candidate_count=20,
-    top_k=None
-  )
-  ->
-FixedTopKContextSelector(top_k=5)
-  ->
-list[RerankedResult]
-```
-
-Important architectural boundary:
-
-The reranker receives the complete first-stage top-20 pool.
-
-The context selector receives the complete reranked pool.
-
-The selector alone decides which passages continue to generation.
-
-No earlier stage is truncated merely to implement generation context size.
+Adjacent chunks therefore cannot currently be treated as useless redundancy.
 
 ---
 
 ## Generation Service Architecture
 
-Provider-independent generation contract:
+Provider-independent implementation:
 
 `src/generation/base.py`
 
@@ -1270,7 +636,7 @@ Tests:
 
 `tests/test_generation_base.py`
 
-Core request contract:
+Core request:
 
 ```python
 GenerationRequest(
@@ -1280,7 +646,7 @@ GenerationRequest(
 )
 ```
 
-Core result contract:
+Core result:
 
 ```python
 GenerationResult(
@@ -1298,36 +664,37 @@ GenerationService.generate(
 ) -> GenerationResult
 ```
 
-Shared request builder:
+Shared helpers:
 
-`build_generation_request()`
+* `build_generation_request()`
+* `build_generation_result()`
 
-Shared result builder:
-
-`build_generation_result()`
+Generation consumes selected evidence rather than repeating upstream pipeline stages.
 
 ---
 
 ## Generation Request Contract
 
-`GenerationRequest` contains:
+The request contains:
 
 * normalized user query
-* immutable selected evidence container
+* selected evidence
 * requested answer language
 
-The evidence container is:
+The selected evidence container is:
 
 ```python
 tuple[RerankedResult, ...]
 ```
 
-The tuple is immutable, but the original `RerankedResult` objects are preserved exactly.
+The tuple is immutable.
 
-This ensures generation continues to retain:
+The underlying `RerankedResult` objects are preserved exactly.
 
-* original `chunk_text`
-* document title
+Generation therefore retains:
+
+* original chunk text
+* title
 * organization
 * document ID
 * page provenance
@@ -1342,15 +709,11 @@ This ensures generation continues to retain:
 * reranker score
 * original first-stage rank
 
-The generation layer does not rewrite, summarize, or mutate evidence merely to create the provider-independent request.
-
 ---
 
 ## Generation Request Validation
 
-`build_generation_request()` validates common inputs before they reach any LLM provider.
-
-Current rules:
+Current common validation rules:
 
 ### Query
 
@@ -1358,26 +721,20 @@ The query is trimmed.
 
 Blank queries raise:
 
-```text
-ValueError
-```
+`ValueError`
 
 ### Answer language
 
-The answer-language value is:
+The language value is:
 
 * trimmed
 * normalized to lowercase
 
-Blank answer-language values raise:
+Blank language values raise:
 
-```text
-ValueError
-```
+`ValueError`
 
-The generic contract intentionally does not yet restrict the provider to only English and Nepali.
-
-V1 currently targets English and Nepali, but the abstraction remains provider-independent.
+The generic contract does not restrict future providers to only English and Nepali.
 
 ### Context
 
@@ -1385,15 +742,11 @@ At least one selected evidence passage is required.
 
 Empty context raises:
 
-```text
-ValueError
-```
+`ValueError`
 
-This is intentional.
+This prevents an LLM provider from accidentally generating an ungrounded answer with no selected evidence.
 
-A concrete LLM provider should not silently receive no evidence and then generate an unsupported answer from model knowledge.
-
-Final user-facing insufficient-evidence behavior will be implemented as a later RAG layer.
+Final user-facing insufficient-evidence behavior remains a later RAG responsibility.
 
 ---
 
@@ -1401,116 +754,256 @@ Final user-facing insufficient-evidence behavior will be implemented as a later 
 
 `GenerationResult` contains:
 
-* `answer_text`
-* optional provider name
-* optional model name
+* answer text
+* optional provider identity
+* optional model identity
 
-The provider/model fields support future:
+This supports future:
 
 * logging
 * diagnostics
+* model comparison
 * evaluation
-* provider comparison
-* experiment tracking
+* MLflow tracking
 * operational observability
 
-Downstream code does not need to understand provider-specific SDK response objects.
+Provider SDK response objects must not leak downstream.
 
 ---
 
-## Generation Result Validation
+## Gemini Generation Provider
 
-`build_generation_result()`:
+Concrete provider:
 
-* trims generated answer text
-* rejects blank answers
-* normalizes blank provider metadata to `None`
-* normalizes blank model metadata to `None`
+`src/generation/gemini_service.py`
 
-A concrete provider therefore returns one stable application-level result contract rather than leaking provider SDK objects into the rest of the RAG system.
+Tests:
 
----
+`tests/test_gemini_generation_service.py`
 
-## Generation Abstraction Design Decision
+SDK dependency:
 
-The generation abstraction is intentionally narrow.
+`google-genai==2.24.0`
 
-It currently knows:
+Selected model:
 
-* the user question
-* the selected evidence
-* the desired answer language
-* the returned answer text
-* optional provider/model provenance
+`gemini-3.8-flash`
 
-It intentionally does **not** know:
+Provider name recorded in results:
 
-* how Gemini authentication works
-* how Gemini requests are sent
-* which Gemini model is selected
-* how the grounded prompt is constructed
-* how evidence is labelled inside the prompt
-* how citations appear in the final answer
-* how citations are validated
-* when the system should refuse
-* how insufficient evidence is detected
+`gemini`
 
-This separation keeps future components independently testable.
+Credential environment variable:
+
+`GEMINI_API_KEY`
+
+Default timeout:
+
+`60.0` seconds
 
 ---
 
-## Why Generation Requires Evidence
+## Gemini Provider Responsibilities
 
-The current generic request builder rejects empty selected context.
+The Gemini provider currently owns:
 
-This establishes a strong architectural invariant:
+* resolving `GEMINI_API_KEY`
+* accepting an explicitly injected API key
+* model configuration
+* timeout configuration
+* SDK client lifecycle
+* lazy client creation
+* provider request execution
+* provider-error wrapping
+* response-text extraction
+* conversion to `GenerationResult`
+* provider/model provenance
+* client cleanup
 
-```text
-No selected evidence
-        !=
-call the LLM anyway
+The provider does **not** own:
+
+* retrieval
+* reranking
+* context selection
+* production grounded prompt policy
+* citation rendering
+* citation validation
+* insufficient-evidence policy
+
+---
+
+## Gemini Prompt Boundary
+
+The provider accepts an injected callable:
+
+```python
+PromptBuilder = Callable[
+    [GenerationRequest],
+    str,
+]
 ```
 
-The later RAG orchestration layer must explicitly decide what to do when retrieval/context selection returns no usable evidence.
+Flow:
 
-Possible future behavior may include:
+```text
+GenerationRequest
+      |
+      v
+PromptBuilder
+      |
+      v
+prompt string
+      |
+      v
+GeminiGenerationService
+      |
+      v
+Gemini API
+```
 
-* returning an insufficient-evidence result
-* asking for clarification
-* declining to make unsupported claims
+This means Gemini transport is independent from prompt policy.
 
-That behavior should not be delegated implicitly to Gemini.
-
----
-
-## Generation Tests
-
-Current generation-abstraction tests verify:
-
-* `GenerationService` is abstract
-* query normalization
-* answer-language normalization
-* selected evidence preservation
-* evidence object identity preservation
-* context-order preservation
-* conversion to immutable context tuple
-* mutation of the caller's original list does not alter the request
-* blank-query rejection
-* blank-language rejection
-* empty-context rejection
-* answer-text normalization
-* provider/model normalization
-* optional provider metadata
-* blank-answer rejection
-* a concrete fake provider can implement the shared contract
-
-Latest full project test suite after adding the abstraction:
-
-`212 passed`
+The production grounded prompt builder has not yet been implemented.
 
 ---
 
-## Current Production RAG Stack
+## Gemini Provider Configuration
+
+Production credentials are resolved from:
+
+`GEMINI_API_KEY`
+
+Explicit API-key injection is supported for tests and application configuration.
+
+An injected test client does not require credentials.
+
+The provider validates:
+
+* prompt builder is callable
+* model name is nonblank
+* timeout is positive
+* production credentials exist when no client is injected
+* generated prompt is a string
+* generated prompt is nonblank
+* Gemini response contains usable text
+
+---
+
+## Gemini Client Construction
+
+The provider creates the official SDK client lazily.
+
+Conceptually:
+
+```python
+genai.Client(
+    api_key=<configured key>,
+    http_options=<configured options>,
+)
+```
+
+Lazy construction means:
+
+* importing the provider does not make network requests
+* unit tests can inject fake clients
+* configuration errors can be tested independently
+* unused services do not allocate networking resources
+
+The provider also exposes:
+
+`close()`
+
+to release SDK networking resources when a client exists.
+
+---
+
+## Gemini Retry Strategy
+
+The provider does not add a second manual retry loop around the Google SDK.
+
+This avoids nested retry policies and unexpectedly multiplying external requests.
+
+Provider failures are converted to the generic application boundary:
+
+```text
+RuntimeError:
+Gemini generation request failed.
+```
+
+The original exception remains attached as the cause for diagnostics.
+
+Retry policy can be revisited if production behavior or measured reliability requires it.
+
+---
+
+## Gemini Response Handling
+
+Expected Gemini SDK output is converted to:
+
+```python
+GenerationResult(
+    answer_text=<generated text>,
+    provider="gemini",
+    model=<configured model>,
+)
+```
+
+Response validation rejects:
+
+* missing text
+* non-string text
+* whitespace-only text
+
+Raw provider objects do not propagate into downstream RAG code.
+
+---
+
+## Gemini Provider Unit Tests
+
+Provider tests currently verify:
+
+* selected default model
+* provider name
+* default timeout
+* missing credential rejection
+* environment credential resolution
+* explicit credential override
+* injected client without credentials
+* blank model rejection
+* invalid timeout rejection
+* noncallable prompt-builder rejection
+* prompt-builder invocation
+* configured model usage
+* custom model provenance
+* non-string prompt rejection
+* blank prompt rejection
+* provider-failure wrapping
+* missing response-text rejection
+* blank response-text rejection
+* injected-client cleanup
+* safe cleanup before lazy client creation
+
+The provider tests use injected fake clients.
+
+They do not require a real Gemini API key.
+
+---
+
+## Gemini Live Smoke Test Status
+
+**Not yet performed**
+
+This is intentional.
+
+The provider transport boundary is unit tested, but the production grounded prompt builder does not yet exist.
+
+The first meaningful live Gemini request should use the actual grounded prompt rather than a temporary prompt that will immediately be discarded.
+
+A live smoke test should therefore occur during or immediately after the Grounded Prompt milestone.
+
+---
+
+## Current Production RAG Architecture
 
 ```text
 User Query
@@ -1551,15 +1044,16 @@ RRF                               |
          GenerationService
                    |
                    v
-          Gemini Provider
+    GeminiGenerationService
+                   |
+                   v
+       GroundedPromptBuilder
               [NEXT]
 ```
 
 ---
 
-## Planned Generation Pipeline
-
-Current architectural target:
+## Planned Generation Flow
 
 ```text
 Selected top-5 evidence
@@ -1568,13 +1062,10 @@ Selected top-5 evidence
 GenerationRequest
         |
         v
-GenerationService
+GroundedPromptBuilder
         |
         v
 GeminiGenerationService
-        |
-        v
-Grounded Prompt
         |
         v
 Gemini API
@@ -1586,69 +1077,89 @@ GenerationResult
 Citation / evidence processing
 ```
 
-The exact provider/prompt implementation is not yet complete.
-
 ---
 
 ## Immediate Next Milestone
 
-**Gemini Generation Provider**
+**Grounded Prompt Construction**
 
 Goal:
 
-Implement a concrete provider behind the existing `GenerationService` abstraction without changing retrieval, reranking, or context-selection behavior.
+Create deterministic provider-independent prompt construction from:
 
-The Gemini provider should address:
+`GenerationRequest`
 
-* local environment configuration
-* API authentication
-* model configuration
-* request construction
-* timeout behavior
-* retry behavior where appropriate
-* response parsing
-* common error handling
-* conversion to `GenerationResult`
-* dependency injection/testability
-* provider/model provenance
+The prompt builder should be independently testable and should not make network requests.
 
-The provider should **not** yet absorb unrelated responsibilities.
+The grounded prompt should address:
 
-Do not combine all of the following into the initial Gemini provider:
+* evidence-only answering
+* clear evidence boundaries
+* answer-language instruction
+* source-document distinctions
+* preservation of original evidence
+* resistance to unsupported inference
+* instruction not to invent policy, law, figures, or source details
+* future citation identifiers
+* deterministic evidence ordering
 
-* final grounded prompt design
-* citation rendering
-* citation correctness validation
-* insufficient-evidence policy
-* end-to-end RAG evaluation
+The prompt builder should consume the already selected top-5 evidence.
 
-Those remain separate milestones.
+It must not:
+
+* rerun retrieval
+* rerun reranking
+* change context selection
+* call Gemini
+* rewrite source metadata
+* invent citation information
 
 ---
 
-## Grounded Prompt — Future Milestone
+## Grounded Prompt Design Requirements
 
-The grounded prompt has **not yet been selected or implemented**.
+The upcoming prompt should clearly distinguish:
 
-It will need to encode rules such as:
+1. system/task instructions
+2. user question
+3. requested answer language
+4. individual evidence passages
+5. evidence metadata
+6. output constraints
 
-* answer only from supplied evidence
-* preserve distinctions between documents
-* do not invent unsupported government policy or law
-* handle multilingual evidence
-* answer in the requested language
-* explicitly separate evidence blocks
-* retain identifiers required for citations
+Evidence passages should receive deterministic identifiers that can later support citation processing.
 
-Prompt construction should be deterministic and testable independently from the Gemini transport/provider.
+Possible conceptual structure:
+
+```text
+Task instructions
+
+Question:
+<query>
+
+Answer language:
+<language>
+
+Evidence:
+
+[E1]
+Document: ...
+Pages: ...
+Passage: ...
+
+[E2]
+...
+```
+
+The exact representation must be unit tested before production use.
 
 ---
 
 ## Citation and Evidence Generation — Future Milestone
 
-Final citations are not yet implemented.
+Final citation rendering is not yet implemented.
 
-The project already preserves metadata required for later citation generation:
+Available provenance already includes:
 
 * title
 * organization
@@ -1658,9 +1169,13 @@ The project already preserves metadata required for later citation generation:
 * chunk ID
 * selected evidence order
 
-Citation generation should not depend on the LLM inventing source metadata.
+The prompt builder may expose deterministic evidence IDs such as:
 
-Where possible, source attribution should be constructed or validated from the actual selected evidence objects.
+`E1`, `E2`, etc.
+
+Later citation processing should map those IDs back onto actual selected evidence.
+
+The model should not be trusted to invent source metadata.
 
 ---
 
@@ -1668,37 +1183,35 @@ Where possible, source attribution should be constructed or validated from the a
 
 Insufficient-evidence behavior has not yet been implemented.
 
-It should not be conflated with context selection or the generic generation provider.
+It should remain separate from:
 
-Current context selection chooses the strongest available evidence.
+* retrieval
+* reranking
+* context selection
+* Gemini transport
 
-Future work must determine when the system should:
+Future behavior must determine when to:
 
 * answer normally
 * answer cautiously
-* state that available evidence is insufficient
-* avoid unsupported factual claims
+* report insufficient evidence
+* avoid unsupported claims
 
-Potential future signals may include:
+Potential evidence signals may include:
 
 * reranker scores
-* evidence agreement
-* source quality
 * retrieval coverage
-* generation groundedness
+* evidence agreement
+* grounded-answer support
 * citation support
 
-No production threshold should be added without evaluation.
+No threshold should be introduced into production without evaluation.
 
 ---
 
 ## End-to-End Evaluation Still Required
 
-Retrieval and context selection have been evaluated independently.
-
-Generation-level evaluation remains future work.
-
-Full RAG evaluation should eventually measure:
+Future generation evaluation should measure:
 
 * answer relevance
 * groundedness
@@ -1717,15 +1230,13 @@ Full RAG evaluation should eventually measure:
 * Nepali -> English
 * failure cases
 
-Retrieval metrics alone must not be treated as proof of answer quality.
+Retrieval metrics alone do not establish answer quality.
 
 ---
 
 ## Important Current Production Decisions
 
 ### First-stage retrieval
-
-Selected architecture:
 
 ```text
 same-language:
@@ -1735,15 +1246,17 @@ cross-lingual:
 dense_contextual only
 ```
 
-Raw dense remains stored for controlled diagnostics.
+### First-stage reranker pool
+
+`20`
 
 ### Reranking
 
-Selected model:
+Model:
 
 `BAAI/bge-reranker-v2-m3`
 
-Selected input:
+Input:
 
 ```text
 Document: <title>
@@ -1753,18 +1266,9 @@ Document: <title>
 
 ### Context selection
 
-Selected strategy:
-
 **Fixed top-5**
 
-Rejected as production defaults:
-
-* strict-prefix token budgeting
-* adjacent-chunk suppression
-
 ### Generation abstraction
-
-Selected architecture:
 
 ```text
 GenerationRequest
@@ -1774,19 +1278,27 @@ GenerationService
 GenerationResult
 ```
 
-Concrete provider:
+### Generation provider
 
-**not yet implemented**
+`GeminiGenerationService`
 
-Next provider:
+### Gemini model
 
-**Gemini**
+`gemini-3.8-flash`
+
+### Gemini Python dependency
+
+`google-genai==2.24.0`
+
+### Grounded prompt
+
+**Not yet implemented**
 
 ---
 
 ## Architecture Principles Established So Far
 
-The project intentionally separates:
+The project separates:
 
 ```text
 Retrieval
@@ -1804,7 +1316,7 @@ Generation Contract
 Generation Provider
    |
    v
-Prompt / Grounding
+Grounded Prompt
    |
    v
 Citation / Evidence
@@ -1814,29 +1326,24 @@ Important consequences:
 
 * retrieval remains independently callable
 * reranking remains independently callable
-* context selection does not rerun retrieval
+* context selection remains independently callable
 * generation does not rerun retrieval
 * generation does not rerun reranking
-* generation does not choose its own evidence
-* provider implementations do not define retrieval policy
-* original passage text remains canonical
-* source provenance is preserved throughout the pipeline
-* experiments remain separate from production defaults until measured
+* generation does not choose new evidence
+* Gemini transport does not define prompt policy
+* original source text remains canonical
+* provider SDK response objects do not leak downstream
+* provenance is preserved end to end
+* experiments remain separate from production behavior until evaluated
 
 ---
 
 ## Current Test State
 
-Latest completed full test run:
+Latest full local test run:
 
 ```text
-212 passed in 2.56s
-```
-
-Previous committed Context Selection milestone:
-
-```text
-199 passed
+232 passed in 2.54s
 ```
 
 Latest validation:
@@ -1849,21 +1356,22 @@ Result:
 
 clean
 
-Current locally changed files should include:
+Current expected local Git status:
 
 ```text
 M docs/project_status.md
-?? src/generation/
-?? tests/test_generation_base.py
+M requirements.txt
+?? src/generation/gemini_service.py
+?? tests/test_gemini_generation_service.py
 ```
 
-The exact `git status --short` output should be checked before staging.
+This is the expected Gemini provider milestone state before staging.
 
 ---
 
-## Git Workflow for Completing Generation Service Abstraction
+## Git Workflow for Completing Gemini Provider Milestone
 
-Run final validation:
+Run final validation after saving this status file:
 
 ```text
 python -m pytest -q
@@ -1871,21 +1379,20 @@ git diff --check
 git status --short
 ```
 
-Expected test baseline:
+Expected test count:
 
-```text
-212 passed
-```
+`232 passed`
 
-Stage only this milestone:
+Stage exactly this milestone:
 
 ```text
 git add docs/project_status.md
-git add src/generation
-git add tests/test_generation_base.py
+git add requirements.txt
+git add src/generation/gemini_service.py
+git add tests/test_gemini_generation_service.py
 ```
 
-Inspect staged files:
+Validate staged changes:
 
 ```text
 git status --short
@@ -1896,10 +1403,10 @@ git diff --cached --stat
 Commit:
 
 ```text
-git commit -m "Add generation service abstraction"
+git commit -m "Add Gemini generation provider"
 ```
 
-Push explicitly:
+Push:
 
 ```text
 git push origin main
@@ -1924,23 +1431,22 @@ The milestone is complete only after:
 
 ## Remaining Major Work
 
-After the Generation Service abstraction:
-
-1. Gemini generation provider
-2. Grounded prompt construction
+1. Grounded prompt construction
+2. Gemini live grounded-generation smoke test
 3. Citation/evidence generation
 4. Insufficient-evidence handling
-5. End-to-end RAG evaluation
-6. FastAPI application
-7. Streamlit interface
-8. Structured logging
-9. MLflow experiment tracking
-10. Docker/Compose production integration
-11. CI refinement
-12. environment/configuration refinement
-13. README and architecture documentation
-14. benchmark documentation
-15. portfolio screenshots/demo
+5. End-to-end RAG orchestration
+6. End-to-end RAG evaluation
+7. FastAPI application
+8. Streamlit interface
+9. Structured logging
+10. MLflow experiment tracking
+11. Docker/Compose production integration
+12. CI refinement
+13. environment/configuration refinement
+14. README and architecture documentation
+15. benchmark documentation
+16. portfolio screenshots/demo
 
 ---
 
@@ -1986,20 +1492,20 @@ Additional rules:
 * Do not rerun expensive OCR unnecessarily.
 * Do not rerun contextual-vector backfill unless required.
 * Preserve raw `dense` for baseline comparison.
-* Preserve `dense_contextual` as the selected semantic retrieval representation.
+* Preserve `dense_contextual` for production semantic retrieval.
 * Preserve original `chunk_text` for generation and citations.
-* Do not mutate evidence text merely to construct model input.
+* Do not mutate evidence merely to build provider input.
 * Keep first-stage retrieval independently callable.
 * Keep reranking independently callable.
-* Context selection must consume reranked results rather than repeat retrieval.
-* Generation must consume selected evidence rather than repeat retrieval, reranking, or selection.
-* Keep Gemini-specific behavior behind the generic `GenerationService`.
-* Do not leak provider SDK response objects into downstream application code.
-* Preserve source provenance throughout the pipeline.
-* All substantive Python code should contain useful comments for assumptions and non-obvious behavior.
+* Keep context selection independently callable.
+* Generation must consume selected evidence rather than repeat upstream stages.
+* Keep Gemini-specific behavior behind `GenerationService`.
+* Keep grounded prompt construction outside Gemini transport.
+* Do not leak Gemini SDK objects into downstream code.
+* Preserve source provenance end to end.
 * Never commit `HF_TOKEN`.
 * Never commit `HF_RERANKER_ENDPOINT_URL`.
-* Future Gemini credentials must also remain outside Git.
-* Do not introduce production thresholds, diversity rules, deduplication heuristics, or refusal thresholds without evaluation evidence.
-* Treat repository code, tests, benchmark output, and Git history as the technical source of truth.
-* Treat this file as a handoff/checkpoint document and update it at meaningful milestones rather than every small code change.
+* Never commit `GEMINI_API_KEY`.
+* Do not add production thresholds, deduplication rules, refusal policies, or score cutoffs without evaluation evidence.
+* Treat repository code, tests, evaluation output, and Git history as technical source of truth.
+* Treat this file as a handoff/checkpoint document.
