@@ -80,24 +80,24 @@ def make_prompt(
 def make_client(
     answer_text: str = "Citizens have a right to education.",
 ):
-    """Create a fake Gemini client."""
+    """Create a fake Gemini Interactions client."""
 
-    generate_content = Mock(
+    create_interaction = Mock(
         return_value=SimpleNamespace(
-            text=answer_text,
+            output_text=answer_text,
         )
     )
 
     client = SimpleNamespace(
-        models=SimpleNamespace(
-            generate_content=generate_content,
+        interactions=SimpleNamespace(
+            create=create_interaction,
         ),
         close=Mock(),
     )
 
     return (
         client,
-        generate_content,
+        create_interaction,
     )
 
 
@@ -286,7 +286,7 @@ def test_service_rejects_noncallable_prompt_builder() -> None:
 def test_generate_uses_prompt_builder_and_model() -> None:
     """Gemini should receive exactly the provider input built upstream."""
 
-    client, generate_content = (
+    client, create_interaction = (
         make_client()
     )
 
@@ -313,9 +313,9 @@ def test_generate_uses_prompt_builder_and_model() -> None:
         request
     )
 
-    generate_content.assert_called_once_with(
+    create_interaction.assert_called_once_with(
         model=MODEL_NAME,
-        contents="Grounded provider input.",
+        input="Grounded provider input.",
     )
 
     assert (
@@ -337,7 +337,7 @@ def test_generate_uses_prompt_builder_and_model() -> None:
 def test_generate_preserves_custom_model_provenance() -> None:
     """Configured model identity should be retained in the result."""
 
-    client, generate_content = (
+    client, create_interaction = (
         make_client(
             "Answer."
         )
@@ -355,9 +355,9 @@ def test_generate_preserves_custom_model_provenance() -> None:
         make_request()
     )
 
-    generate_content.assert_called_once_with(
+    create_interaction.assert_called_once_with(
         model="custom-gemini-model",
-        contents=(
+        input=(
             "Question: "
             "What education rights are guaranteed?"
         ),
@@ -372,7 +372,7 @@ def test_generate_preserves_custom_model_provenance() -> None:
 def test_generate_rejects_non_string_prompt() -> None:
     """A malformed prompt builder should fail before external inference."""
 
-    client, generate_content = (
+    client, create_interaction = (
         make_client()
     )
 
@@ -394,13 +394,13 @@ def test_generate_rejects_non_string_prompt() -> None:
             make_request()
         )
 
-    generate_content.assert_not_called()
+    create_interaction.assert_not_called()
 
 
 def test_generate_rejects_blank_prompt() -> None:
     """Empty provider input should never be sent to Gemini."""
 
-    client, generate_content = (
+    client, create_interaction = (
         make_client()
     )
 
@@ -422,17 +422,17 @@ def test_generate_rejects_blank_prompt() -> None:
             make_request()
         )
 
-    generate_content.assert_not_called()
+    create_interaction.assert_not_called()
 
 
 def test_generate_wraps_provider_failure() -> None:
     """Provider SDK errors should not leak through the generic RAG boundary."""
 
-    client, generate_content = (
+    client, create_interaction = (
         make_client()
     )
 
-    generate_content.side_effect = (
+    create_interaction.side_effect = (
         RuntimeError(
             "provider failed"
         )
@@ -457,15 +457,15 @@ def test_generate_wraps_provider_failure() -> None:
 
 
 def test_generate_rejects_missing_response_text() -> None:
-    """A Gemini response without text is not a valid generation result."""
+    """A Gemini interaction without text is not a valid generation result."""
 
-    client, generate_content = (
+    client, create_interaction = (
         make_client()
     )
 
-    generate_content.return_value = (
+    create_interaction.return_value = (
         SimpleNamespace(
-            text=None,
+            output_text=None,
         )
     )
 

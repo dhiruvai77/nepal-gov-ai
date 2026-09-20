@@ -51,14 +51,12 @@ DEFAULT_DATASET_PATH = Path(
 
 DEFAULT_OUTPUT_PATH = Path(
     "data/evaluation/rag_runs/"
-    "production_rag_v1.jsonl"
+    "production_rag_v2_interactions.jsonl"
 )
 
 RESULT_SCHEMA_VERSION = 1
 
-# Increment this whenever the production RAG configuration changes in a way
-# that makes previous generated benchmark rows no longer directly comparable.
-RUN_CONFIG_ID = "production-rag-v1"
+RUN_CONFIG_ID = "production-rag-v2-interactions"
 
 LANGUAGE_PAIR_ORDER = (
     ("en", "en"),

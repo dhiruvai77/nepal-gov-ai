@@ -1,7 +1,7 @@
 """Gemini generation provider for NepalGov AI.
 
 This provider implements the generic GenerationService contract using the
-Google Gen AI Python SDK.
+Google Gen AI Python SDK and the Gemini Interactions API.
 
 The provider is responsible only for Gemini transport and response handling.
 Grounded prompt construction remains a separate dependency so prompt design can
@@ -33,8 +33,7 @@ DEFAULT_TIMEOUT_SECONDS = 60.0
 PROVIDER_NAME = "gemini"
 
 
-# Prompt construction deliberately remains outside the Gemini provider. The
-# grounded-prompt milestone will provide the production implementation.
+# Prompt construction deliberately remains outside the Gemini provider.
 PromptBuilder = Callable[
     [
         GenerationRequest,
@@ -46,7 +45,7 @@ PromptBuilder = Callable[
 class GeminiGenerationService(
     GenerationService
 ):
-    """Generate answers through the Gemini Developer API."""
+    """Generate answers through the Gemini Interactions API."""
 
     def __init__(
         self,
@@ -155,12 +154,12 @@ class GeminiGenerationService(
                 "for Gemini generation."
             ) from exc
 
-        # Gemini 3.8 Flash is available through the stable API. Selecting v1
-        # avoids silently depending on beta API behavior.
+        # The Gemini Interactions API is generally available through v1.
+        # Selecting the stable API prevents production generation from
+        # depending implicitly on beta API behavior.
         #
         # The SDK uses httpx internally. Supplying the timeout through
-        # client_args keeps connection behavior explicit while leaving
-        # transient-error retries to the SDK's built-in retry handling.
+        # client_args keeps network behavior explicit.
         http_options = types.HttpOptions(
             api_version="v1",
             client_args={
@@ -210,7 +209,7 @@ class GeminiGenerationService(
         self,
         request: GenerationRequest,
     ) -> GenerationResult:
-        """Generate one answer through Gemini."""
+        """Generate one answer through the Gemini Interactions API."""
 
         prompt = self._build_prompt(
             request
@@ -219,10 +218,10 @@ class GeminiGenerationService(
         client = self._get_client()
 
         try:
-            response = (
-                client.models.generate_content(
+            interaction = (
+                client.interactions.create(
                     model=self.model_name,
-                    contents=prompt,
+                    input=prompt,
                 )
             )
 
@@ -235,8 +234,8 @@ class GeminiGenerationService(
             ) from exc
 
         answer_text = getattr(
-            response,
-            "text",
+            interaction,
+            "output_text",
             None,
         )
 
