@@ -59,6 +59,12 @@ class RetrievalResult:
     source_url: str
     chunk_text: str
 
+    # The original chunk position and tokenizer-derived size are useful for
+    # downstream context selection. They remain optional so retrieval results
+    # created by tests or future providers stay backward-compatible.
+    chunk_index: int | None = None
+    token_count: int | None = None
+
     # Optional metadata is retained because later retrieval stages may use it
     # for reranking, filtering, citation display, or context selection.
     category: str | None = None
@@ -165,6 +171,16 @@ def normalize_search_result(
         page_end=int(payload["page_end"]),
         source_url=str(payload["source_url"]),
         chunk_text=str(payload["chunk_text"]),
+        chunk_index=(
+            int(payload["chunk_index"])
+            if payload.get("chunk_index") is not None
+            else None
+        ),
+        token_count=(
+            int(payload["token_count"])
+            if payload.get("token_count") is not None
+            else None
+        ),
         category=payload.get("category"),
         document_type=payload.get("document_type"),
         publication_date=payload.get(

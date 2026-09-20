@@ -90,6 +90,8 @@ def sample_payload() -> dict:
         "chunk_text": (
             "Every person shall have the right to live with dignity."
         ),
+        "chunk_index": 1,
+        "token_count": 14,
         "extraction_method": "native",
     }
 
@@ -177,7 +179,7 @@ def test_build_metadata_filter_rejects_blank_value() -> None:
 
 
 def test_normalize_search_result_preserves_citation_metadata() -> None:
-    """Normalized results must retain evidence needed for citations."""
+    """Normalized results must retain evidence needed for downstream RAG."""
 
     result = normalize_search_result(
         sample_point()
@@ -233,6 +235,44 @@ def test_normalize_search_result_preserves_citation_metadata() -> None:
     assert (
         result.source_url
         == "https://example.gov.np/constitution"
+    )
+
+    assert (
+        result.chunk_index
+        == 1
+    )
+
+    assert (
+        result.token_count
+        == 14
+    )
+
+
+def test_normalize_search_result_allows_missing_optional_context_metadata() -> None:
+    """Older or alternate payloads may omit context-selection metadata."""
+
+    point = sample_point()
+
+    del point.payload[
+        "chunk_index"
+    ]
+
+    del point.payload[
+        "token_count"
+    ]
+
+    result = normalize_search_result(
+        point
+    )
+
+    assert (
+        result.chunk_index
+        is None
+    )
+
+    assert (
+        result.token_count
+        is None
     )
 
 
