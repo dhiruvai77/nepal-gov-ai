@@ -434,3 +434,53 @@ def test_numeric_factual_claim_is_not_removed() -> None:
     assert claims[0].evidence_ids == (
         "E1",
     )
+
+def test_multiple_citations_inside_single_bracket() -> None:
+    claims = extract_claim_citation_units(
+        "The result was reported [E1, E2]."
+    )
+
+    assert len(claims) == 1
+
+    assert claims[0].evidence_ids == (
+        "E1",
+        "E2",
+    )
+
+    assert (
+        claims[0].claim_text
+        == "The result was reported."
+    )
+
+
+def test_combined_citations_preserve_order_and_deduplicate() -> None:
+    claims = extract_claim_citation_units(
+        "The result was reported [E2, E1, E2]."
+    )
+
+    assert claims[0].evidence_ids == (
+        "E2",
+        "E1",
+    )
+
+    assert (
+        claims[0].claim_text
+        == "The result was reported."
+    )
+
+
+def test_mixed_combined_and_separate_citations() -> None:
+    claims = extract_claim_citation_units(
+        "The result was reported [E1, E2], [E3]."
+    )
+
+    assert claims[0].evidence_ids == (
+        "E1",
+        "E2",
+        "E3",
+    )
+
+    assert (
+        claims[0].claim_text
+        == "The result was reported."
+    )

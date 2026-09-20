@@ -17,8 +17,12 @@ from dataclasses import dataclass
 from typing import Any
 
 
+EVIDENCE_GROUP_PATTERN = re.compile(
+    r"\[(E\d+(?:\s*,\s*E\d+)*)\]"
+)
+
 EVIDENCE_ID_PATTERN = re.compile(
-    r"\[(E\d+)\]"
+    r"E\d+"
 )
 
 SENTENCE_BOUNDARY_PATTERN = re.compile(
@@ -46,7 +50,8 @@ FULL_BOLD_HEADING_PATTERN = re.compile(
 )
 
 CITATION_WITH_SEPARATOR_PATTERN = re.compile(
-    r"\s*(?:,\s*)?\[(?:E\d+)\]"
+    r"\s*(?:,\s*)?"
+    r"\[(?:E\d+(?:\s*,\s*E\d+)*)\]"
 )
 
 
@@ -186,13 +191,22 @@ def _is_nonclaim_line(
 def _extract_evidence_ids(
     text: str,
 ) -> tuple[str, ...]:
-    """Extract unique evidence IDs from one textual claim unit."""
+    """Extract unique evidence IDs from citation groups in one claim."""
+
+    evidence_ids: list[str] = []
+
+    for match in EVIDENCE_GROUP_PATTERN.finditer(
+        text
+    ):
+        evidence_ids.extend(
+            EVIDENCE_ID_PATTERN.findall(
+                match.group(1)
+            )
+        )
 
     return (
         _deduplicate_preserving_order(
-            EVIDENCE_ID_PATTERN.findall(
-                text
-            )
+            evidence_ids
         )
     )
 
@@ -269,6 +283,9 @@ def extract_claim_citation_units(
 
     Citation IDs are removed from `claim_text` but preserved structurally in
     `evidence_ids`.
+
+    Both separate citation groups such as `[E1], [E2]` and combined citation
+    groups such as `[E1, E2]` are supported.
     """
 
     if not isinstance(
