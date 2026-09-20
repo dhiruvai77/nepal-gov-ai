@@ -6,7 +6,7 @@ Last updated: 2026-09-20
 
 This file is the project handoff and checkpoint document for NepalGov AI.
 
-It exists so development can continue accurately across ChatGPT conversations without reconstructing architectural decisions, benchmark results, implemented milestones, and remaining work from scratch.
+It exists so development can continue accurately across ChatGPT conversations without reconstructing architectural decisions, benchmark results, implementation history, and remaining work from scratch.
 
 Technical source of truth remains:
 
@@ -15,9 +15,14 @@ Technical source of truth remains:
 * evaluation outputs
 * Git history
 
-Project-status updates are now performed after every **four completed milestones**, rather than after every individual milestone.
+Project-status updates are performed after every **four completed milestones**, rather than after every individual milestone.
 
-Between status checkpoints, Git history, tests, and repository code remain the live source of truth.
+Between checkpoints:
+
+* Git history is the milestone record
+* tests are the validation record
+* repository code is the architecture source of truth
+* persisted benchmark outputs are the evaluation record
 
 ---
 
@@ -49,532 +54,650 @@ V1 domains:
 
 # Current Project State
 
-The core RAG architecture is now implemented through application-level orchestration.
+The complete V1 RAG execution path is implemented and has now been evaluated end to end on the existing 30-question multilingual benchmark.
 
 Completed major layers:
 
-1. multilingual retrieval
-2. multilingual reranking
-3. context selection
-4. provider-independent generation contract
-5. Gemini generation provider
-6. grounded prompt construction
-7. live Gemini generation validation
-8. citation/evidence processing
-9. insufficient-evidence handling
-10. end-to-end RAG orchestration
+1. document ingestion and chunking
+2. multilingual dense embeddings
+3. sparse BM25 representations
+4. multilingual hybrid retrieval
+5. multilingual reranking
+6. context selection
+7. provider-independent generation abstraction
+8. Gemini generation provider
+9. grounded evidence prompt
+10. citation/evidence processing
+11. insufficient-evidence handling
+12. application-level RAG orchestration
+13. deterministic RAG evaluation metrics
+14. resumable production RAG benchmark runner
+15. Gemini Interactions API transport
+16. complete 30-question production RAG benchmark
 
-Current locally validated test suite:
+Current validated test suite:
 
-`295 passed`
-
-Latest validation:
-
-`git diff --check` — clean
-
-Current local uncommitted milestone:
-
-**End-to-End RAG Orchestration**
-
-Files:
-
-* `src/rag/pipeline.py`
-* `tests/test_rag_pipeline.py`
-* `docs/project_status.md`
-
-Next major milestone after this checkpoint:
-
-**End-to-End RAG Evaluation**
-
----
-
-# Git Milestone History
+`325 passed`
 
 Latest committed milestone on `main`:
 
-`b67d42b — Add insufficient evidence handling`
+`e9ab5ec — Migrate Gemini generation to Interactions API`
 
-Recent milestones:
+Current completed but not yet committed checkpoint milestone:
 
-`83af4f5 — Add evidence citation processing`
+**Production 30-question RAG Benchmark**
 
-`c25ec2f — Add grounded Gemini smoke test`
+Official benchmark output:
 
-`bb387e6 — Add grounded generation prompt`
+`data/evaluation/rag_runs/production_rag_v2_interactions.jsonl`
 
-`99cb986 — Add Gemini generation provider`
+Rows:
 
-`e0332a2 — Add generation service abstraction`
+`30`
 
-`e9642ee — Add evaluated context selection pipeline`
+Next major development direction:
 
-`4c38b3b — Promote title-aware multilingual reranking`
-
-The current End-to-End RAG Orchestration milestone is locally validated but not yet committed at this checkpoint.
+**Claim-level citation correctness and semantic faithfulness evaluation**
 
 ---
 
-# Four-Milestone Checkpoint Summary
+# Latest Four-Milestone Checkpoint
 
-This status update captures the following four completed development milestones.
+This checkpoint captures the following four completed milestones:
 
-## Milestone 1 — Live Grounded Gemini Smoke Test
+1. Deterministic RAG Evaluation Metrics
+2. Production 30-question RAG Evaluation Runner
+3. Gemini Interactions API Migration
+4. Complete Production RAG Benchmark
+
+---
+
+# Milestone 1 — Deterministic RAG Evaluation Metrics
 
 Committed as:
 
-`c25ec2f — Add grounded Gemini smoke test`
+`80058cf — Add deterministic RAG evaluation metrics`
 
 Implementation:
 
-`src/generation/run_gemini_smoke_test.py`
+`src/evaluation/rag_evaluator.py`
 
-The smoke test exercised the real production generation path:
-
-```text
-GenerationRequest
-        |
-        v
-GroundedPromptBuilder
-        |
-        v
-GeminiGenerationService
-        |
-        v
-Gemini API
-        |
-        v
-GenerationResult
-```
-
-The test used deterministic synthetic evidence rather than live retrieval so generation behavior could be isolated.
-
-Synthetic evidence stated that a public service desk:
-
-* operates Monday through Thursday
-* operates from 09:00 to 15:00
-* is closed Friday
-
-The real Gemini response correctly preserved all three facts and cited:
-
-`[E1]`
-
-Observed successful output included:
-
-* provider: `gemini`
-* model: `gemini-3.8-flash`
-* grounded answer
-* valid evidence identifier `[E1]`
-
-The first attempts returned:
-
-`503 UNAVAILABLE`
-
-because the model endpoint was temporarily under high demand.
-
-A later request succeeded without changing the production model.
-
-Conclusion:
-
-* Gemini credentials work
-* SDK connectivity works
-* model access works
-* grounded prompt works against the real model
-* response parsing works
-* provider/model provenance works
-* generated evidence labels work in practice
-
-An SDK AFC warning was also observed, but it did not prevent successful text generation.
-
----
-
-## Milestone 2 — Citation / Evidence Processing
-
-Committed as:
-
-`83af4f5 — Add evidence citation processing`
-
-Implementation:
-
-`src/citations/evidence.py`
-
-Tests:
-
-`tests/test_evidence_citations.py`
-
-This layer formalizes the evidence identifier contract introduced by:
-
-`GroundedPromptBuilder`
-
-Evidence identifiers are deterministic:
-
-```text
-E1
-E2
-E3
-...
-```
-
-They correspond directly to selected-context order.
-
-Example:
-
-```text
-selected_context[0] -> E1
-selected_context[1] -> E2
-selected_context[2] -> E3
-```
-
-Citation processing now supports:
-
-* building evidence-ID maps
-* extracting model-generated `[E#]` references
-* preserving first-appearance order
-* deduplicating repeated references
-* detecting invalid evidence identifiers
-* mapping valid IDs back to exact `RerankedResult` objects
-* preserving generated answer text exactly
-* rendering canonical source metadata
-
-Core types:
-
-```python
-EvidenceCitation
-CitationProcessingResult
-```
-
-Key functions:
-
-```python
-build_evidence_map()
-extract_evidence_ids()
-process_answer_citations()
-format_evidence_citation()
-render_cited_sources()
-```
-
-The model is never trusted to supply canonical source metadata.
-
-Instead:
-
-```text
-model output:
-[E1]
-   |
-   v
-validated against selected context
-   |
-   v
-canonical title / organization / pages / URL
-```
-
-Invalid model references such as:
-
-```text
-[E99]
-```
-
-are detected explicitly.
-
-They do not silently resolve to a source.
-
----
-
-## Milestone 3 — Insufficient-Evidence Handling
-
-Committed as:
-
-`b67d42b — Add insufficient evidence handling`
-
-Implementation:
-
-`src/generation/evidence_guard.py`
-
-Tests:
-
-`tests/test_evidence_guard.py`
-
-The evidence guard introduces deterministic application-level withholding behavior.
-
-No retrieval-score or reranker-score threshold has been introduced.
-
-Current structural withholding reasons:
-
-```python
-EvidenceGuardReason.NO_SELECTED_EVIDENCE
-EvidenceGuardReason.MISSING_CITATIONS
-EvidenceGuardReason.INVALID_CITATIONS
-```
-
-### No selected evidence
-
-If upstream context selection returns no passages:
-
-```text
-retrieval/context selection
-        |
-        v
-no context
-        |
-        v
-do not call LLM
-        |
-        v
-deterministic insufficient-evidence response
-```
-
-### Missing citations
-
-If generation occurs but the answer contains no valid evidence identifier:
-
-```text
-generated answer
-        |
-        v
-no [E#]
-        |
-        v
-withhold model answer
-```
-
-### Invalid citations
-
-If the model invents a reference such as:
-
-```text
-[E99]
-```
-
-the answer is withheld even if another valid citation also appears.
-
-Invalid citation handling therefore takes precedence.
-
-### Deterministic messages
-
-English:
-
-```text
-The supplied government evidence is insufficient to provide a supported answer.
-```
-
-Nepali:
-
-```text
-उपलब्ध गराइएको सरकारी प्रमाणका आधारमा पर्याप्त रूपमा समर्थित उत्तर दिन सकिएन।
-```
-
-Unknown language identifiers currently fall back to the English application-owned message.
-
-### Important limitation
-
-The current evidence guard treats valid citation structure as a necessary condition for presenting generated output.
-
-It does **not** claim that citation presence alone proves semantic faithfulness.
-
-Claim-level factual support remains an evaluation problem.
-
----
-
-## Milestone 4 — End-to-End RAG Orchestration
-
-Current locally completed milestone.
-
-Implementation:
+Supporting orchestration change:
 
 `src/rag/pipeline.py`
 
 Tests:
 
+`tests/test_rag_evaluator.py`
+
 `tests/test_rag_pipeline.py`
 
-Current full test result:
+The evaluator reuses manually verified retrieval gold annotations and compares them against:
 
-`295 passed`
+* selected RAG context
+* cited evidence
+* citation reference validity
+* acceptance/withholding behavior
 
-The new application-level orchestration composes existing independently tested stages rather than reimplementing their behavior.
+Per-query metrics:
 
-Pipeline:
+```python
+RAGQueryMetrics(
+    question_id,
+    accepted,
+    withheld,
+    selected_primary_hit,
+    selected_relevant_recall,
+    cited_primary_hit,
+    cited_relevant_precision,
+    cited_relevant_recall,
+    valid_reference_ratio,
+    selected_context_count,
+    valid_citation_count,
+    invalid_citation_count,
+    rendered_source_count,
+)
+```
+
+Aggregate metrics include:
+
+* acceptance rate
+* withholding rate
+* selected primary hit rate
+* selected relevant recall
+* cited primary hit rate
+* cited relevant precision
+* cited relevant recall
+* valid-reference ratio
+* average selected context count
+* average valid citation count
+* average invalid citation count
+* average rendered source count
+
+The existing retrieval benchmark uses Qdrant `point_id` values as the gold passage identifiers.
+
+The RAG evaluator therefore intentionally evaluates:
+
+```python
+item.result.point_id
+```
+
+rather than introducing a different passage identity.
+
+## Important limitation
+
+These deterministic metrics measure:
+
+* evidence coverage
+* citation selection
+* citation-reference validity
+* structural grounding behavior
+
+They do **not** establish that every generated claim is semantically entailed by its cited passage.
+
+For example:
 
 ```text
-query
-  |
-  v
-context provider
-  |
-  v
-retrieval + reranking + context selection
-  |
-  +---------------- no evidence ----------------+
-  |                                             |
-  |                                             v
-  |                               deterministic withholding
-  |
-  v
-GenerationRequest
-  |
-  v
-GroundedPromptBuilder
-  |
-  v
-GenerationService
-  |
-  v
-GenerationResult
-  |
-  v
+claim [E1]
+```
+
+can contain a structurally valid citation even when the relationship between the claim and passage still requires semantic evaluation.
+
+Claim-level citation correctness remains a separate evaluation problem.
+
+---
+
+# Milestone 2 — Production RAG Evaluation Runner
+
+Committed as:
+
+`9d14f05 — Add resumable RAG evaluation runner`
+
+Implementation:
+
+`src/evaluation/run_rag_evaluation.py`
+
+Tests:
+
+`tests/test_run_rag_evaluation.py`
+
+The runner executes the existing 30-question multilingual retrieval benchmark through the complete production RAG pipeline.
+
+Execution path:
+
+```text
+Evaluation Question
+       |
+       v
+Production Retrieval
+       |
+       v
+Production Reranking
+       |
+       v
+Fixed Top-5 Context
+       |
+       v
+Grounded Gemini Generation
+       |
+       v
 Citation Processing
-  |
-  v
+       |
+       v
 Evidence Guard
-  |
-  v
-RAGResult
+       |
+       v
+Deterministic RAG Metrics
+       |
+       v
+Persistent JSONL Result
 ```
 
-Core orchestration types:
+The runner supports:
 
-```python
-ContextProvider
-RAGResult
-RAGPipeline
+* full production execution
+* immediate persistence after each completed question
+* safe resume after interruption
+* validation of persisted rows before reuse
+* duplicate-question protection
+* benchmark/run configuration validation
+* dataset/gold annotation validation
+* `--limit` for controlled hosted execution
+* `--reset` for intentional clean reruns
+* language-pair metric summaries
+* overall metric summaries
+
+Production language behavior:
+
+```text
+query_language -> answer language
+target_language -> retrieval corpus filter
 ```
 
-Production constructor:
+Therefore:
 
-```python
-build_production_rag_pipeline()
+English -> Nepali evidence:
+
+```text
+query: English
+retrieval corpus: Nepali
+answer: English
 ```
 
-Production generation wiring:
+Nepali -> English evidence:
+
+```text
+query: Nepali
+retrieval corpus: English
+answer: Nepali
+```
+
+This distinction is intentional.
+
+The runner persists each successfully completed row immediately.
+
+This behavior was validated in practice when external Gemini failures interrupted evaluation: previously completed rows remained reusable and were not regenerated.
+
+---
+
+# Milestone 3 — Gemini Interactions API Migration
+
+Committed as:
+
+`e9ab5ec — Migrate Gemini generation to Interactions API`
+
+Implementation:
+
+`src/generation/gemini_service.py`
+
+Tests:
+
+`tests/test_gemini_generation_service.py`
+
+Production model remains:
+
+`gemini-3.8-flash`
+
+The public generation abstraction did not change.
+
+Existing interface:
 
 ```python
-GeminiGenerationService(
-    prompt_builder=GroundedPromptBuilder(),
+GenerationService.generate(
+    request: GenerationRequest,
+) -> GenerationResult
+```
+
+remains intact.
+
+Only the Gemini SDK transport changed.
+
+Previous path:
+
+```python
+client.models.generate_content(
+    model=...,
+    contents=...,
 )
 ```
 
-Production context provider:
+Current production path:
 
 ```python
-run_context_selection
-```
-
----
-
-# RAGResult Contract
-
-The final application-level result contains:
-
-```python
-RAGResult(
-    answer_text: str,
-    accepted: bool,
-    reason: EvidenceGuardReason | None,
-    sources: tuple[str, ...],
-    selected_context: tuple[RerankedResult, ...],
-    provider: str | None,
-    model: str | None,
+client.interactions.create(
+    model=...,
+    input=...,
 )
 ```
 
-This creates one clean boundary for future:
-
-* FastAPI
-* Streamlit
-* evaluation
-* structured logging
-* monitoring
-* MLflow
-
----
-
-# End-to-End Orchestration Behavior
-
-## Successful answer
-
-When evidence exists and generated citations are valid:
-
-```text
-selected evidence
-      |
-      v
-generation
-      |
-      v
-valid citations
-      |
-      v
-accepted answer
-      |
-      v
-canonical rendered sources
-```
-
-The original generated answer is preserved.
-
-Provider provenance is retained.
-
-Selected context is retained.
-
----
-
-## No selected evidence
-
-If context selection returns:
+Response text is read from:
 
 ```python
-[]
+interaction.output_text
 ```
 
-generation is skipped completely.
+## Reason for migration
 
-The result contains:
+During production benchmark validation, repeated:
 
 ```text
-accepted = False
-reason = NO_SELECTED_EVIDENCE
-provider = None
-model = None
-sources = ()
-selected_context = ()
+503 UNAVAILABLE
 ```
 
-This prevents evidence-free LLM generation.
+errors occurred through `Models.generate_content()` across multiple Gemini 3 Flash models.
+
+Diagnostics established that:
+
+* API authentication worked
+* model discovery worked
+* `count_tokens` worked
+* the configured Gemini models were visible
+* Gemini Interactions API generation worked
+* `Models.generate_content()` remained unavailable
+
+A direct Interactions diagnostic using:
+
+`gemini-3.8-flash`
+
+returned successfully.
+
+Therefore the provider transport was migrated without changing:
+
+* retrieval
+* reranking
+* context selection
+* prompt construction
+* citation processing
+* evidence guarding
+* application orchestration
+* production model identity
+
+The earlier automatic-function-calling warning associated with direct `Models.generate_content()` also disappeared after migration.
 
 ---
 
-## Missing citations
+# Milestone 4 — Complete Production RAG Benchmark
 
-If generated output does not contain a valid evidence label:
+Official benchmark:
+
+`data/evaluation/rag_runs/production_rag_v2_interactions.jsonl`
+
+Run configuration:
+
+`production-rag-v2-interactions`
+
+Questions:
+
+`30/30`
+
+Language slices:
+
+* 12 English -> English
+* 6 Nepali -> Nepali
+* 6 English -> Nepali
+* 6 Nepali -> English
+
+Production stack evaluated:
 
 ```text
-accepted = False
-reason = MISSING_CITATIONS
-sources = ()
+contextual multilingual E5
+        +
+BM25 for same-language retrieval
+        |
+        v
+RRF where applicable
+        |
+        v
+Top-20 candidates
+        |
+        v
+BAAI/bge-reranker-v2-m3
+        |
+        v
+Fixed Top-5 context
+        |
+        v
+GroundedPromptBuilder
+        |
+        v
+gemini-3.8-flash
+Interactions API
+        |
+        v
+Citation Processing
+        |
+        v
+Evidence Guard
 ```
 
-The generated answer is replaced with the deterministic insufficient-evidence message.
+## Final benchmark results
 
-Provider/model provenance remains available because generation actually occurred.
+| Slice       |      N |    Accept |    SelHit |    SelRec |    CitHit |   CitPrec |    CitRec |     Valid |
+| ----------- | -----: | --------: | --------: | --------: | --------: | --------: | --------: | --------: |
+| EN -> EN    |     12 |     1.000 |     0.833 |     0.792 |     0.833 |     0.533 |     0.792 |     1.000 |
+| NE -> NE    |      6 |     1.000 |     1.000 |     1.000 |     1.000 |     0.458 |     0.917 |     1.000 |
+| EN -> NE    |      6 |     1.000 |     0.833 |     0.861 |     0.833 |     0.347 |     0.778 |     1.000 |
+| NE -> EN    |      6 |     1.000 |     0.667 |     0.722 |     0.667 |     0.539 |     0.722 |     1.000 |
+| **Overall** | **30** | **1.000** | **0.833** | **0.833** | **0.833** | **0.482** | **0.800** | **1.000** |
+
+Metric meanings:
+
+```text
+Accept
+    accepted-answer rate
+
+SelHit
+    selected context contains at least one primary gold passage
+
+SelRec
+    recall of gold-relevant passages in selected context
+
+CitHit
+    cited passages contain at least one primary gold passage
+
+CitPrec
+    fraction of cited passage identities that appear in the
+    benchmark's broader relevant gold set
+
+CitRec
+    recall of benchmark-relevant passages among cited evidence
+
+Valid
+    fraction of generated evidence references that resolve to
+    real selected evidence IDs
+```
 
 ---
 
-## Invalid citations
+# Benchmark Interpretation
 
-If generated output contains an invented evidence identifier:
+## Structural citation behavior
 
-```text
-[E99]
-```
-
-the result becomes:
+Overall:
 
 ```text
-accepted = False
-reason = INVALID_CITATIONS
-sources = ()
+Acceptance rate = 1.000
+Valid reference ratio = 1.000
 ```
 
-Invalid sources are never rendered to the user.
+All 30 generated answers:
+
+* passed the current evidence guard
+* contained valid selected-context evidence references
+* contained no unresolved evidence IDs
+
+This validates the current structural citation contract.
+
+It does **not** prove semantic claim-level faithfulness.
+
+---
+
+## Selected evidence coverage
+
+Overall:
+
+```text
+Selected primary hit = 0.833
+Selected relevant recall = 0.833
+```
+
+The fixed top-5 context therefore retained strong evidence coverage across the full benchmark.
+
+The result is consistent with the previous context-selection benchmark, where fixed top-5 also achieved:
+
+```text
+Hit = 0.833
+Recall = 0.833
+```
+
+The generation benchmark therefore did not expose an unexpected deterioration in selected-context coverage.
+
+---
+
+## Citation recall
+
+Overall:
+
+```text
+Cited relevant recall = 0.800
+```
+
+Compared with:
+
+```text
+Selected relevant recall = 0.833
+```
+
+the model cited most, but not all, gold-relevant evidence available in its selected context.
+
+The gap is relatively small at aggregate level but should be investigated per question.
+
+---
+
+## Citation precision
+
+Overall deterministic citation precision:
+
+```text
+0.482
+```
+
+This is the clearest next evaluation signal.
+
+It means that, under the existing manually annotated gold passage set, approximately 48.2% of distinct cited passage identities are classified as benchmark-relevant on average.
+
+This metric must be interpreted cautiously.
+
+It does **not** establish that every citation outside the current gold set is incorrect.
+
+Possible explanations include:
+
+* the model cites additional supporting passages
+* a cited passage is useful but absent from the manually annotated gold set
+* overlapping chunks contain valid support not separately annotated
+* the model over-cites context passages
+* some citations are only partially relevant
+* some citations may genuinely fail to support the associated claim
+
+Therefore deterministic citation precision should be treated as a diagnostic trigger for semantic evaluation rather than a final groundedness score.
+
+---
+
+## English -> English
+
+Results:
+
+```text
+SelHit  = 0.833
+SelRec  = 0.792
+CitHit  = 0.833
+CitPrec = 0.533
+CitRec  = 0.792
+```
+
+The generation stage retained the selected-context evidence recall in its citation behavior.
+
+---
+
+## Nepali -> Nepali
+
+Results:
+
+```text
+SelHit  = 1.000
+SelRec  = 1.000
+CitHit  = 1.000
+CitPrec = 0.458
+CitRec  = 0.917
+```
+
+This is the strongest selected-context slice.
+
+All primary evidence was selected.
+
+The model cited nearly all broader gold evidence but also cited passages outside the current gold annotations.
+
+This slice is a useful candidate for examining whether low deterministic citation precision represents:
+
+* legitimate supplementary evidence
+* incomplete gold annotations
+* unnecessary over-citation
+
+---
+
+## English -> Nepali
+
+Results:
+
+```text
+SelHit  = 0.833
+SelRec  = 0.861
+CitHit  = 0.833
+CitPrec = 0.347
+CitRec  = 0.778
+```
+
+This slice has the lowest deterministic citation precision.
+
+It should receive special attention in claim-level semantic evaluation.
+
+The result may reflect:
+
+* cross-lingual evidence interpretation
+* broader citation behavior
+* incomplete relevant-passage annotations
+* overlapping Nepali evidence chunks
+* genuine citation-quality problems
+
+No conclusion should be made without semantic inspection.
+
+---
+
+## Nepali -> English
+
+Results:
+
+```text
+SelHit  = 0.667
+SelRec  = 0.722
+CitHit  = 0.667
+CitPrec = 0.539
+CitRec  = 0.722
+```
+
+This is the weakest selected-evidence slice.
+
+The main limitation appears upstream of generation because selected-context metrics are already lower than the other language pairs.
+
+This makes Nepali-query -> English-document retrieval an important future retrieval-improvement target.
+
+---
+
+# Evaluation Caveats
+
+The current 30-question benchmark was originally designed primarily for retrieval evaluation.
+
+It contains manually verified relevant evidence, but it does not yet contain:
+
+* reference answers
+* per-claim support labels
+* unsupported-claim labels
+* citation entailment labels
+* answer completeness labels
+* deliberately unanswerable questions
+* expected withholding labels
+
+Therefore current results should not be described as a complete factual-accuracy benchmark.
+
+In particular:
+
+```text
+Acceptance = 1.000
+```
+
+does not validate insufficient-evidence handling because the benchmark questions are designed around retrievable government evidence.
+
+A separate unanswerable/insufficient-evidence benchmark is required.
 
 ---
 
@@ -614,26 +737,7 @@ Parameters:
 * target chunk size: approximately `400` tokens
 * overlap: approximately `60` tokens
 
-Preserved metadata includes:
-
-* chunk ID
-* document ID
-* title
-* organization
-* category
-* document type
-* language
-* publication date
-* source URL
-* page range
-* section
-* subsection
-* article number
-* article title
-* chunk index
-* original passage text
-* tokenizer-derived token count
-* extraction method
+Original passage text is preserved.
 
 Current chunking remains a flat overlapping baseline.
 
@@ -641,9 +745,9 @@ Parent/child structure-aware chunking has not been introduced.
 
 ---
 
-# Embeddings
+# Embeddings and Qdrant
 
-Primary model:
+Embedding model:
 
 `intfloat/multilingual-e5-large-instruct`
 
@@ -664,31 +768,33 @@ Instruct: <instruction>
 Query: <query>
 ```
 
-Stored Qdrant representations:
+Qdrant collection:
+
+`nepal_gov_documents`
+
+Stored representations:
 
 * `dense`
-
-  * original raw passage embedding
 * `dense_contextual`
-
-  * metadata-enriched passage embedding
 * `bm25`
-
-  * sparse lexical representation
 
 Production semantic retrieval uses:
 
 `dense_contextual`
 
-Raw dense remains stored for controlled comparisons and diagnostics.
+Raw `dense` remains stored for baseline comparisons and diagnostics.
 
-Original `chunk_text` remains canonical evidence.
+Original passage text remains canonical evidence.
+
+All `2,276` points have contextual vectors.
+
+Do not rerun contextual-vector backfill unless required by a corpus or representation change.
 
 ---
 
 # Production Retrieval
 
-## Same-language retrieval
+## Same-language
 
 English -> English:
 
@@ -702,7 +808,7 @@ Nepali -> Nepali:
 dense_contextual + BM25 -> RRF
 ```
 
-## Cross-lingual retrieval
+## Cross-lingual
 
 English -> Nepali:
 
@@ -716,46 +822,32 @@ Nepali -> English:
 dense_contextual only
 ```
 
-BM25 is intentionally skipped when query and target document languages differ.
+BM25 is intentionally skipped when query language and target document language differ.
 
-Query language detection is implemented in:
+Production candidate depth:
 
-`src/retrieval/run_hybrid_retrieval.py`
-
-Current V1 routing identifies Devanagari queries as Nepali and otherwise routes them as English.
+`20`
 
 ---
 
-# Retrieval Evaluation Dataset
+# Retrieval Evaluation
 
-Manually verified benchmark:
+Benchmark:
 
-`30 questions`
+`data/evaluation/retrieval_questions.jsonl`
+
+Questions:
+
+`30`
 
 Slices:
 
-* 12 English -> English
-* 6 Nepali -> Nepali
-* 6 English -> Nepali
-* 6 Nepali -> English
+* 12 EN -> EN
+* 6 NE -> NE
+* 6 EN -> NE
+* 6 NE -> EN
 
-Metrics:
-
-* Hit Rate
-* MRR
-* Recall
-
-Persistent first-stage primary-evidence misses at @20:
-
-* `en_en_011`
-* `en_ne_002`
-* `ne_en_005`
-
-These cannot be recovered downstream because required evidence never enters the top-20 candidate pool.
-
----
-
-# First-Stage Retrieval Baseline
+First-stage baseline:
 
 | Cutoff |   Hit |   MRR | Recall |
 | ------ | ----: | ----: | -----: |
@@ -763,29 +855,27 @@ These cannot be recovered downstream because required evidence never enters the 
 | @10    | 0.900 | 0.524 |  0.856 |
 | @20    | 0.900 | 0.524 |  0.886 |
 
-Validated production candidate depth:
+Persistent top-20 primary-evidence misses:
 
-`20`
+* `en_en_011`
+* `en_ne_002`
+* `ne_en_005`
+
+Evidence that never reaches the top-20 candidate pool cannot be recovered by reranking or generation.
 
 ---
 
 # Production Reranking
 
-Provider abstraction:
-
-`src/reranking/base.py`
-
-Hosted implementation:
+Implementation:
 
 `src/reranking/hf_bge_reranker.py`
-
-Production integration:
-
-`src/retrieval/run_reranked_retrieval.py`
 
 Model:
 
 `BAAI/bge-reranker-v2-m3`
+
+Hosted through Hugging Face TEI.
 
 Production representation:
 
@@ -795,15 +885,11 @@ Document: <title>
 <original chunk_text>
 ```
 
-The richer contextual dense representation remains retrieval-only.
+Candidate count:
 
-Original passage text remains unchanged.
+`20`
 
----
-
-# Reranking Evaluation
-
-Title-aware BGE:
+Title-aware reranking benchmark:
 
 | Cutoff |   Hit |   MRR | Recall |
 | ------ | ----: | ----: | -----: |
@@ -811,46 +897,19 @@ Title-aware BGE:
 | @10    | 0.900 | 0.706 |  0.869 |
 | @20    | 0.900 | 0.706 |  0.886 |
 
-Important source-sensitive case:
-
-`en_en_007`
-
-```text
-First-stage rank: 7
-Plain BGE rank: 12
-Title-aware BGE rank: 2
-```
-
-Selected production reranker representation remains title-aware.
-
 ---
 
 # Production Context Selection
 
-Abstraction:
-
-`src/context_selection/base.py`
-
-Production selector:
-
-`src/context_selection/fixed_top_k.py`
-
-Production integration:
+Implementation:
 
 `src/context_selection/run_context_selection.py`
 
-Selected strategy:
+Production strategy:
 
 **Fixed top-5**
 
-Experimental selectors retained:
-
-* token-budget selector
-* adjacent-chunk selector
-
----
-
-# Context Selection Evaluation
+Evaluation:
 
 | Strategy             |       Hit |       MRR |    Recall | Avg passages | Avg tokens | AdjPairs |
 | -------------------- | --------: | --------: | --------: | -----------: | ---------: | -------: |
@@ -862,11 +921,7 @@ Experimental selectors retained:
 | Budget 2200          |     0.833 |     0.697 |     0.842 |         5.97 |     2026.2 |     1.47 |
 | Adjacent-aware top-5 |     0.767 |     0.675 |     0.756 |         5.00 |     1702.2 |     0.00 |
 
-Production decision:
-
-**Fixed top-5**
-
-Adjacent evidence is not automatically treated as redundant because suppression reduced evidence quality.
+Adjacent suppression was rejected because it reduced evidence quality.
 
 ---
 
@@ -876,7 +931,7 @@ Provider-independent implementation:
 
 `src/generation/base.py`
 
-Core request:
+Request:
 
 ```python
 GenerationRequest(
@@ -886,7 +941,7 @@ GenerationRequest(
 )
 ```
 
-Core result:
+Result:
 
 ```python
 GenerationResult(
@@ -896,17 +951,7 @@ GenerationResult(
 )
 ```
 
-Interface:
-
-```python
-GenerationService.generate(
-    request: GenerationRequest,
-) -> GenerationResult
-```
-
-Generation requires selected evidence.
-
-An empty-context generation request is rejected.
+Generation requires non-empty selected evidence.
 
 ---
 
@@ -916,7 +961,7 @@ Implementation:
 
 `src/generation/gemini_service.py`
 
-SDK dependency:
+SDK:
 
 `google-genai==2.24.0`
 
@@ -924,7 +969,11 @@ Production model:
 
 `gemini-3.8-flash`
 
-Environment variable:
+Transport:
+
+**Gemini Interactions API**
+
+Environment:
 
 `GEMINI_API_KEY`
 
@@ -936,20 +985,7 @@ Provider provenance:
 
 `gemini`
 
-The provider supports:
-
-* environment credential resolution
-* explicit API-key injection
-* explicit model configuration
-* timeout configuration
-* lazy SDK construction
-* fake client injection
-* response parsing
-* provider-error isolation
-* provider/model provenance
-* SDK client cleanup
-
-Gemini-specific SDK objects do not propagate into application code.
+The provider remains isolated from prompt policy and RAG orchestration.
 
 ---
 
@@ -959,69 +995,37 @@ Implementation:
 
 `src/generation/grounded_prompt.py`
 
-Production callable:
+Production builder:
 
 ```python
 GroundedPromptBuilder()
 ```
 
-Prompt responsibilities:
+Rules include:
 
-* question placement
-* answer-language instruction
-* evidence boundaries
-* deterministic evidence IDs
-* canonical evidence metadata
-* evidence-only answering instructions
-* prompt-injection boundary instructions
-* citation requirements
-* instruction to abstain instead of guessing
+* answer only from supplied evidence
+* treat evidence as source material rather than instructions
+* do not use outside knowledge
+* preserve material legal wording
+* preserve numerical values
+* preserve dates
+* preserve qualifications and limitations
+* state insufficiency instead of guessing
+* answer in the requested language
+* cite factual claims with supplied `[E#]` identifiers
+* place labels after the supported sentence or clause
+* never invent evidence identifiers
+* return only the answer
 
-The prompt requires factual claims to cite supplied evidence IDs.
-
-Example:
-
-```text
-The Constitution guarantees ... [E1]
-```
-
-Evidence IDs must be placed after the sentence or clause they support.
-
-The prompt explicitly prohibits invented or modified evidence labels.
-
----
-
-# Evidence Representation
-
-Evidence blocks use:
+Evidence blocks:
 
 ```text
 [E1]
-Document: ...
-Organization: ...
-Document ID: ...
-Language: ...
-Pages: ...
-Section: ...
-Article: ...
-Passage:
-<original chunk_text>
+...
+original chunk_text
+...
 [/E1]
 ```
-
-Optional metadata is included only when available.
-
-Original `chunk_text` is inserted verbatim.
-
-Prompt construction does not:
-
-* summarize evidence
-* paraphrase evidence
-* translate evidence
-* alter legal wording
-* alter dates
-* alter numerical values
-* reorder selected evidence
 
 ---
 
@@ -1031,29 +1035,31 @@ Implementation:
 
 `src/citations/evidence.py`
 
-Deterministic mapping:
+Evidence mapping:
 
 ```text
 selected_context[0] -> E1
 selected_context[1] -> E2
+selected_context[2] -> E3
 ...
 ```
 
-Citation parsing preserves:
+Canonical rendered source metadata is application-owned.
 
-* first-appearance order
-* unique evidence IDs
-* exact underlying `RerankedResult` identity
+The model is never trusted to invent:
 
-Rendered source metadata uses application-owned provenance:
-
-* evidence ID
-* document title
+* source title
 * organization
-* page/page range
-* source URL
+* page numbers
+* URLs
 
-The language model is not trusted to supply canonical citation metadata.
+Invalid identifiers such as:
+
+```text
+[E99]
+```
+
+are detected explicitly.
 
 ---
 
@@ -1063,35 +1069,66 @@ Implementation:
 
 `src/generation/evidence_guard.py`
 
-Current structural policy:
+Structural withholding reasons:
+
+```python
+EvidenceGuardReason.NO_SELECTED_EVIDENCE
+EvidenceGuardReason.MISSING_CITATIONS
+EvidenceGuardReason.INVALID_CITATIONS
+```
+
+Policy:
 
 ```text
 No selected evidence
+    -> skip generation and withhold
+
+Generated answer with no valid citations
     -> withhold
 
-No valid citations
+Generated answer with any invalid citation IDs
     -> withhold
 
-Invalid evidence IDs
-    -> withhold
-
-Valid selected evidence + valid citations
-    -> allow
+Selected evidence + structurally valid citations
+    -> accept
 ```
 
-Current policy deliberately does not use:
-
-* dense similarity thresholds
-* BM25 thresholds
-* RRF thresholds
-* reranker-score cutoffs
-* model confidence estimates
-
-Those must be evaluated before becoming production rules.
+No arbitrary retrieval/reranking score threshold is currently used.
 
 ---
 
-# Current End-to-End Production Architecture
+# RAG Orchestration
+
+Implementation:
+
+`src/rag/pipeline.py`
+
+Production constructor:
+
+```python
+build_production_rag_pipeline()
+```
+
+Current `RAGResult` includes:
+
+```python
+RAGResult(
+    answer_text,
+    accepted,
+    reason,
+    sources,
+    selected_context,
+    citation_result,
+    provider,
+    model,
+)
+```
+
+Structured `citation_result` is deliberately preserved so evaluation can inspect cited evidence without reparsing rendered output.
+
+---
+
+# Current Production Architecture
 
 ```text
 User Query
@@ -1109,7 +1146,7 @@ Contextual E5                     Contextual E5
 BM25                                  |
    |                                  |
    v                                  |
-RRF                                  |
+RRF                                   |
    +------------------+---------------+
                       |
                       v
@@ -1119,11 +1156,7 @@ RRF                                  |
         Title-Aware BGE Reranker
                       |
                       v
-          Reranked Candidate Pool
-                      |
-                      v
-             Fixed Top-5
-           Context Selection
+                 Fixed Top-5
                       |
            +----------+----------+
            |                     |
@@ -1131,24 +1164,27 @@ RRF                                  |
            |                     |
            v                     v
       Evidence Guard       GenerationRequest
-           |                     |
-           |                     v
-           |            GroundedPromptBuilder
-           |                     |
-           |                     v
-           |          GeminiGenerationService
-           |                     |
-           |                     v
-           |                 Gemini API
-           |                     |
-           |                     v
-           |              GenerationResult
-           |                     |
-           |                     v
-           |            Citation Processing
-           |                     |
-           |                     v
-           +------------ Evidence Guard
+                                 |
+                                 v
+                        GroundedPromptBuilder
+                                 |
+                                 v
+                       GeminiGenerationService
+                                 |
+                                 v
+                       Gemini Interactions API
+                                 |
+                                 v
+                        gemini-3.8-flash
+                                 |
+                                 v
+                         GenerationResult
+                                 |
+                                 v
+                        Citation Processing
+                                 |
+                                 v
+                          Evidence Guard
                                  |
                                  v
                               RAGResult
@@ -1156,79 +1192,9 @@ RRF                                  |
 
 ---
 
-# Current Application API Boundary
+# Test Progression
 
-The new RAG orchestration gives future interfaces one primary application object:
-
-```python
-RAGPipeline
-```
-
-Typical production construction:
-
-```python
-pipeline = build_production_rag_pipeline()
-```
-
-Typical answer call:
-
-```python
-result = pipeline.answer(
-    query,
-    answer_language="en",
-)
-```
-
-The same pipeline can later be reused by:
-
-* FastAPI
-* Streamlit
-* batch evaluation
-* CLI workflows
-* experiment runners
-
-without duplicating retrieval/generation logic.
-
----
-
-# Current Test State
-
-Latest full local run:
-
-```text
-295 passed in 2.93s
-```
-
-Validation:
-
-```text
-git diff --check
-```
-
-Result:
-
-clean
-
-Current local Git state before this checkpoint update:
-
-```text
-?? src/rag/
-?? tests/test_rag_pipeline.py
-```
-
-After replacing this file, expected status becomes approximately:
-
-```text
-M docs/project_status.md
-?? src/rag/
-?? tests/test_rag_pipeline.py
-```
-
----
-
-# Checkpoint Test Progression
-
-Generation Service baseline:
+Generation abstraction:
 
 `212 passed`
 
@@ -1240,7 +1206,7 @@ Grounded prompt:
 
 `246 passed`
 
-Citation processing:
+Citation/evidence:
 
 `263 passed`
 
@@ -1252,111 +1218,143 @@ End-to-end RAG orchestration:
 
 `295 passed`
 
-The test count progression reflects added coverage rather than removal of existing tests.
+Deterministic RAG evaluation:
+
+`310 passed`
+
+Production RAG evaluation runner and subsequent validation:
+
+`325 passed`
+
+Current expected full suite:
+
+`325 passed`
+
+---
+
+# Git Milestone History
+
+Recent milestones:
+
+`e9ab5ec — Migrate Gemini generation to Interactions API`
+
+`9d14f05 — Add resumable RAG evaluation runner`
+
+`80058cf — Add deterministic RAG evaluation metrics`
+
+`4691192 — Add end-to-end RAG orchestration`
+
+`b67d42b — Add insufficient evidence handling`
+
+`83af4f5 — Add evidence citation processing`
+
+`c25ec2f — Add grounded Gemini smoke test`
+
+`bb387e6 — Add grounded generation prompt`
+
+`99cb986 — Add Gemini generation provider`
+
+`e0332a2 — Add generation service abstraction`
+
+`e9642ee — Add evaluated context selection pipeline`
+
+`4c38b3b — Promote title-aware multilingual reranking`
+
+The current benchmark/checkpoint commit has not yet been created at the time of this status-file update.
 
 ---
 
 # Immediate Next Major Milestone
 
-**End-to-End RAG Evaluation**
+**Claim-Level Citation Correctness and Semantic Faithfulness Evaluation**
 
-The core execution pipeline now exists.
+The deterministic benchmark has established structural evidence behavior.
 
-The next step should measure whether final generated answers are actually high quality across the multilingual evaluation set.
+The next evaluation layer should determine whether generated claims are actually supported by the evidence cited after them.
 
-Evaluation should go beyond retrieval metrics.
+Candidate evaluation dimensions:
 
-Candidate generation metrics include:
-
-* answer relevance
-* factual consistency
-* faithfulness to evidence
-* evidence utilization
-* citation correctness
-* citation validity
-* citation completeness
+* claim extraction
+* claim-to-citation alignment
+* citation entailment
 * unsupported-claim rate
-* refusal/withholding correctness
-* unnecessary-refusal rate
+* citation completeness
+* unnecessary citation rate
+* numerical fidelity
+* date fidelity
+* legal qualification preservation
+* cross-lingual evidence fidelity
 * answer-language correctness
-* English -> English quality
-* Nepali -> Nepali quality
-* English -> Nepali quality
-* Nepali -> English quality
 
-The evaluation should also inspect documented failure cases.
-
----
-
-# Important Evaluation Limitation
-
-Current evidence guarding verifies structural citation behavior.
-
-Example:
+This should distinguish:
 
 ```text
-claim [E1]
-```
-
-can be validated as referencing a real selected passage.
-
-However, this does not prove that:
-
-```text
-claim
-```
-
-is semantically supported by:
-
-```text
-E1
-```
-
-Therefore future evaluation must distinguish:
-
-```text
-citation validity
+citation ID validity
 ```
 
 from:
 
 ```text
-citation correctness / claim support
+citation relevance
 ```
 
-This distinction is essential before the system can claim strong groundedness.
+from:
+
+```text
+claim-level semantic support
+```
+
+These are different properties.
+
+---
+
+# Recommended Next Evaluation Work
+
+A logical next four-milestone cycle is:
+
+1. claim-level semantic citation evaluator design
+2. manually verified semantic evaluation subset
+3. insufficient-evidence / unanswerable benchmark
+4. production answer-quality evaluation and checkpoint
+
+The exact sequence can change if measured evidence justifies another priority.
 
 ---
 
 # Remaining Major Work
 
-1. End-to-end RAG evaluation
-2. generation-quality benchmark refinement
-3. citation correctness/completeness evaluation
-4. insufficient-evidence evaluation
-5. FastAPI application
-6. Streamlit interface
-7. structured logging
-8. MLflow experiment tracking
-9. Docker/Compose application integration
-10. CI refinement
-11. environment/configuration refinement
-12. README architecture documentation
-13. benchmark documentation
-14. screenshots/demo
-15. portfolio presentation
+1. claim-level citation correctness evaluation
+2. semantic faithfulness evaluation
+3. answer completeness evaluation
+4. insufficient-evidence/unanswerable benchmark
+5. generation-quality benchmark refinement
+6. retrieval improvements for NE -> EN
+7. investigation of EN -> NE citation precision
+8. FastAPI application
+9. Streamlit interface
+10. structured logging
+11. MLflow experiment tracking
+12. Docker/Compose application integration
+13. CI refinement
+14. environment/configuration refinement
+15. README architecture documentation
+16. benchmark documentation
+17. screenshots/demo
+18. portfolio presentation
 
-Potential future experimental work, only if evaluation justifies it:
+Potential experimental work, only if evaluation justifies it:
 
 * generation model comparison
-* context-size comparison for final answer quality
+* context-size comparison
+* citation-aware generation prompting
 * reranker-score evidence sufficiency
-* claim-level grounding validation
 * parent/child chunking
 * retrieval-query reformulation
+* cross-lingual retrieval improvements
+* semantic citation validation
 * more advanced prompt-injection defenses
 
-These should not be promoted without measured evidence.
+Experiments must remain separate from production until measured.
 
 ---
 
@@ -1376,7 +1374,7 @@ Cross-lingual:
 dense_contextual only
 ```
 
-## First-stage depth
+## Candidate depth
 
 `20`
 
@@ -1384,7 +1382,7 @@ dense_contextual only
 
 `BAAI/bge-reranker-v2-m3`
 
-Representation:
+Input:
 
 ```text
 Document: <title>
@@ -1404,15 +1402,15 @@ Document: <title>
 
 `gemini-3.8-flash`
 
-## Gemini SDK
+## Gemini transport
 
-`google-genai==2.24.0`
+`Interactions API`
 
 ## Prompt
 
 `GroundedPromptBuilder`
 
-## Citation IDs
+## Citation identifiers
 
 ```text
 E1, E2, E3, ...
@@ -1420,47 +1418,21 @@ E1, E2, E3, ...
 
 ## Evidence guard
 
-Structural citation/evidence validation without score thresholds.
+Structural evidence/citation validation without arbitrary retrieval-score thresholds.
 
 ## Application orchestration
 
 `RAGPipeline`
 
+## Production benchmark
+
+`data/evaluation/rag_runs/production_rag_v2_interactions.jsonl`
+
 ---
 
 # Architecture Principles
 
-The project currently enforces these separation-of-concern boundaries:
-
-```text
-Retrieval
-   |
-   v
-Reranking
-   |
-   v
-Context Selection
-   |
-   v
-Generation Request
-   |
-   v
-Grounded Prompt
-   |
-   v
-Generation Provider
-   |
-   v
-Citation Processing
-   |
-   v
-Evidence Guard
-   |
-   v
-Application RAG Result
-```
-
-Rules:
+The project currently enforces:
 
 * retrieval remains independently callable
 * reranking remains independently callable
@@ -1470,12 +1442,17 @@ Rules:
 * prompt construction does not call Gemini
 * citation processing does not trust model-generated source metadata
 * invalid evidence references are never silently accepted
-* no-evidence cases skip LLM generation
+* no-evidence cases skip generation
 * original `chunk_text` remains canonical
+* raw dense vectors remain preserved
+* contextual vectors remain separately preserved
 * selected evidence order remains stable
-* provider SDK objects do not leak into downstream layers
+* provider SDK objects do not leak downstream
 * source provenance remains available end to end
+* structured citation results remain machine-readable
 * experiments are not promoted without evaluation
+* expensive preprocessing is not rerun without need
+* resumable hosted evaluations should not repeat completed calls
 
 ---
 
@@ -1497,31 +1474,32 @@ Do not disable Smart App Control.
 
 ---
 
-# Secrets and Environment Rules
+# Secrets
 
-Never commit:
+Never commit or expose:
 
 * `HF_TOKEN`
 * `HF_RERANKER_ENDPOINT_URL`
 * `GEMINI_API_KEY`
 
-Never paste secrets into ChatGPT.
+Hosted credentials remain local environment configuration.
 
-Hosted credentials should remain local environment configuration.
+Evaluation artifacts must never contain secrets.
 
 ---
 
 # Expensive Operations
 
-Do not rerun unless necessary:
+Do not rerun unless required:
 
 * forced OCR
 * document ingestion
 * dense embeddings
 * contextual dense backfill
 * full reranker benchmark
+* completed hosted generation benchmark calls
 
-Current corpus and vectors are already valid for the present architecture.
+The current corpus and stored vectors remain valid for the present architecture.
 
 ---
 
@@ -1557,7 +1535,7 @@ Push explicitly:
 git push origin main
 ```
 
-Verify after push:
+Verify:
 
 ```text
 git status --short
@@ -1570,27 +1548,39 @@ A milestone is complete only after the validated change is committed and pushed.
 
 # Project Status Update Cadence
 
-`docs/project_status.md` should now normally be updated after every **four completed milestones**.
+Update:
 
-Do not update it after every minor change.
+`docs/project_status.md`
 
-Between checkpoint updates:
+after every **four completed milestones**.
 
-* Git history is the milestone record
-* tests are the validation record
-* code is the architecture source of truth
+Do not update it after each small change.
 
-A status update may still be performed earlier if a major architectural reset or handoff requires it.
+An earlier update is appropriate only for a major architectural reset or explicit handoff requirement.
 
 ---
 
 # Current Checkpoint Commit Workflow
 
-The current locally completed milestone is:
+The completed checkpoint milestone is:
 
-**End-to-End RAG Orchestration**
+**Production 30-question RAG Benchmark**
 
-Before committing, run:
+Official artifact:
+
+```text
+data/evaluation/rag_runs/production_rag_v2_interactions.jsonl
+```
+
+The earlier:
+
+```text
+production_rag_v1.jsonl
+```
+
+was a diagnostic run that mixed generation transports and should not be treated as the official benchmark.
+
+Before committing:
 
 ```text
 python -m pytest -q
@@ -1600,28 +1590,28 @@ git status --short
 
 Expected tests:
 
-`295 passed`
+```text
+325 passed
+```
 
-Stage:
+Stage only:
 
 ```text
-git add docs/project_status.md
-git add src/rag
-git add tests/test_rag_pipeline.py
+docs/project_status.md
+data/evaluation/rag_runs/production_rag_v2_interactions.jsonl
 ```
 
 Validate:
 
 ```text
-git status --short
 git diff --cached --check
 git diff --cached --stat
 ```
 
-Commit:
+Suggested commit:
 
 ```text
-git commit -m "Add end-to-end RAG orchestration"
+git commit -m "Record production RAG benchmark"
 ```
 
 Push:
@@ -1637,6 +1627,6 @@ git status --short
 git log -1 --oneline
 ```
 
-After this commit is pushed, the next development phase is:
+After this checkpoint is pushed, the next development phase is:
 
-**End-to-End RAG Evaluation**
+**Claim-Level Citation Correctness and Semantic Faithfulness Evaluation**
