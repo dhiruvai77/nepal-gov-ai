@@ -19,6 +19,7 @@ from typing import (
 )
 
 from src.citations.evidence import (
+    CitationProcessingResult,
     process_answer_citations,
     render_cited_sources,
 )
@@ -77,6 +78,10 @@ class RAGResult:
 
     `selected_context` preserves the exact evidence supplied to generation.
 
+    `citation_result` preserves machine-readable citation diagnostics for
+    evaluation and application observability. It is None when generation was
+    skipped because no evidence was selected.
+
     `provider` and `model` remain None when generation was skipped because no
     evidence was selected.
     """
@@ -95,6 +100,10 @@ class RAGResult:
         RerankedResult,
         ...
     ]
+    citation_result: (
+        CitationProcessingResult
+        | None
+    ) = None
     provider: str | None = None
     model: str | None = None
 
@@ -241,6 +250,7 @@ class RAGPipeline:
                 ),
                 sources=(),
                 selected_context=(),
+                citation_result=None,
                 provider=None,
                 model=None,
             )
@@ -300,6 +310,9 @@ class RAGPipeline:
             sources=sources,
             selected_context=(
                 generation_request.context
+            ),
+            citation_result=(
+                citation_result
             ),
             provider=(
                 generation_result.provider

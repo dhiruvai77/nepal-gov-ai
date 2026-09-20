@@ -157,6 +157,19 @@ def test_pipeline_accepts_valid_cited_answer() -> None:
     assert result.provider == "fake"
     assert result.model == "fake-model"
 
+    assert (
+        result.citation_result
+        is not None
+    )
+
+    assert [
+        citation.evidence_id
+        for citation
+        in result.citation_result.citations
+    ] == [
+        "E1",
+    ]
+
 
 def test_pipeline_builds_generation_request_from_selected_context() -> None:
     """Generation should receive exactly the selected context."""
@@ -422,6 +435,7 @@ def test_no_selected_evidence_skips_generation() -> None:
     assert result.model is None
     assert result.sources == ()
     assert result.selected_context == ()
+    assert result.citation_result is None
 
 
 def test_missing_citation_withholds_generated_answer() -> None:
@@ -460,6 +474,16 @@ def test_missing_citation_withholds_generated_answer() -> None:
         "to provide a supported answer."
     )
 
+    assert (
+        result.citation_result
+        is not None
+    )
+
+    assert (
+        result.citation_result.citations
+        == ()
+    )
+
     # Generation still occurred, so provenance remains available.
     assert result.provider == "fake"
     assert result.model == "fake-model"
@@ -495,6 +519,19 @@ def test_invalid_citation_withholds_generated_answer() -> None:
     )
 
     assert result.sources == ()
+
+    assert (
+        result.citation_result
+        is not None
+    )
+
+    assert (
+        result.citation_result
+        .invalid_evidence_ids
+        == (
+            "E99",
+        )
+    )
 
 
 def test_selected_context_is_preserved_in_result() -> None:
