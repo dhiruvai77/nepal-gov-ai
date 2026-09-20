@@ -47,61 +47,89 @@ V1 domains:
 
 ## Current Milestone
 
-**Context selection completed; generation service abstraction is the next milestone**
+**Generation service abstraction completed locally; Gemini generation provider is the next milestone**
 
-The production multilingual retrieval pipeline now includes:
+The production RAG architecture now has independently testable boundaries for:
 
-* language-aware first-stage retrieval
-* contextual multilingual E5 dense retrieval
-* BM25 for same-language retrieval
-* Reciprocal Rank Fusion
-* hosted multilingual BGE reranking
-* title-aware reranker input
-* evaluated context selection
+* multilingual first-stage retrieval
+* title-aware multilingual reranking
+* fixed top-5 context selection
+* provider-independent generation
 
-The selected production context-selection strategy is:
+The new generation abstraction is implemented through:
 
-**Fixed top-5 reranked passages**
+`src/generation/base.py`
 
-Context selection was evaluated using:
+It introduces:
 
-* fixed top-3
-* fixed top-5
-* fixed top-8
-* token budget 1400
-* token budget 1800
-* token budget 2200
-* adjacent-chunk-aware top-5
+* `GenerationRequest`
+* `GenerationResult`
+* `GenerationService`
+* generation-request validation
+* generation-result validation
 
-The fixed top-5 strategy was selected because it provides the strongest measured balance of evidence coverage, ranking quality, simplicity, and context cost.
+The abstraction consumes the already selected evidence and does not repeat:
 
-Production context selection is implemented separately from retrieval and reranking through:
+* retrieval
+* reranking
+* context selection
 
-`src/context_selection/run_context_selection.py`
+The selected evidence objects remain intact, including their original passage text and citation provenance.
 
-The next milestone is:
+The generic generation layer intentionally does **not** yet contain:
 
-**Generation Service Abstraction**
+* Gemini-specific API behavior
+* Gemini authentication/configuration
+* grounded prompt construction
+* citation rendering
+* citation validation
+* insufficient-evidence policy
+* refusal behavior
+* final RAG orchestration
+
+Latest local validation:
+
+`212 passed`
+
+Latest whitespace/error validation:
+
+`git diff --check` — clean
+
+The next milestone after committing this abstraction is:
+
+**Gemini Generation Provider**
 
 ---
 
 ## Last Validated Repository State
 
-Last committed production reranking milestone:
+Latest committed milestone on `main`:
+
+`e9642ee — Add evaluated context selection pipeline`
+
+Previous production reranking milestone:
 
 `4c38b3b — Promote title-aware multilingual reranking`
 
-Current Context Selection milestone is fully implemented and locally validated.
+The current Generation Service abstraction is implemented locally but has not yet been committed at this checkpoint.
 
-Latest full test suite:
+Current uncommitted milestone files:
+
+* `src/generation/base.py`
+* `tests/test_generation_base.py`
+* `docs/project_status.md`
+
+Latest full local test suite:
+
+`212 passed`
+
+Previous Context Selection milestone test suite:
 
 `199 passed`
 
 Latest whitespace/error validation:
 
 `git diff --check` — clean
-
-Context Selection changes are ready for final staging, commit, and push.
 
 Development environment:
 
@@ -288,6 +316,7 @@ These fields are now available downstream for:
 * context selection
 * token-cost measurement
 * adjacency diagnostics
+* generation diagnostics
 * future context-management strategies
 
 They remain optional for backward compatibility.
@@ -433,7 +462,7 @@ Persistent primary-evidence misses at @20:
 
 These remain **first-stage retrieval misses**.
 
-A reranker or context selector cannot recover evidence that does not enter the top-20 first-stage candidate pool.
+A reranker, context selector, or generator cannot recover evidence that does not enter the top-20 first-stage candidate pool.
 
 ---
 
@@ -858,9 +887,7 @@ Production first-stage retrieval remains independently callable through:
 
 `src/retrieval/run_hybrid_retrieval.py`
 
-This is intentional.
-
-Reranking is added as a separate production stage through:
+Reranking is added separately through:
 
 `src/retrieval/run_reranked_retrieval.py`
 
@@ -886,11 +913,11 @@ title-aware passage representation
 reranked candidate pool
 ```
 
-The reranking stage defaults to returning the full reranked candidate pool.
+The reranking stage defaults to returning the complete reranked candidate pool.
 
-It does **not** decide how many passages should be sent to the LLM.
+It does not decide how many passages reach generation.
 
-That responsibility now belongs to the independent Context Selection layer.
+That responsibility belongs to Context Selection.
 
 ---
 
@@ -900,7 +927,7 @@ Provider-independent abstraction:
 
 `src/context_selection/base.py`
 
-Production baseline selector:
+Production selector:
 
 `src/context_selection/fixed_top_k.py`
 
@@ -931,21 +958,9 @@ The selector consumes:
 
 It does not repeat retrieval or reranking.
 
-The production reranker continues returning its full top-20 candidate pool.
+The production reranker continues returning its complete top-20 candidate pool.
 
 Context selection is applied only afterward.
-
-This keeps the pipeline stages independently testable:
-
-```text
-retrieval
-->
-reranking
-->
-context selection
-->
-generation
-```
 
 ---
 
@@ -957,12 +972,12 @@ Every question was:
 
 1. retrieved once to a fixed depth of 20
 2. reranked once using title-aware BGE
-3. cached as a full reranked candidate pool
+3. cached as a complete reranked candidate pool
 4. passed through each context-selection strategy
 
 Therefore selectors were compared against the exact same retrieval and reranking results.
 
-The hosted BGE endpoint was **not** invoked independently for each selector.
+The hosted BGE endpoint was not invoked independently for each selector.
 
 Metrics included:
 
@@ -972,8 +987,6 @@ Metrics included:
 * average selected passages
 * average source-passage tokens
 * average adjacent same-document chunk pairs
-
-This allows context quality and context cost to be evaluated together.
 
 ---
 
@@ -1090,16 +1103,12 @@ Budget 1800:
 * Recall decreases from `0.833` to `0.822`
 * saves only about `70` average tokens
 
-Therefore budget 1800 does not improve the quality/cost tradeoff.
-
 Budget 2200:
 
 * same Hit as fixed top-5
 * same MRR as fixed top-5
 * Recall improves slightly to `0.842`
 * average token use rises to `2026.2`
-
-The small recall improvement does not justify replacing the simpler top-5 production baseline.
 
 Conclusion:
 
@@ -1153,9 +1162,7 @@ Language slices:
 The selector successfully removed all measured adjacent chunk pairs:
 
 ```text
-1.07
-->
-0.00
+1.07 -> 0.00
 ```
 
 However, evidence quality fell materially:
@@ -1178,8 +1185,6 @@ This indicates that adjacent chunks in the current corpus frequently contain com
 Therefore:
 
 **Do not suppress adjacent chunks in production context selection without new evaluation evidence.**
-
-Simple adjacency is not a reliable proxy for useless redundancy in the current corpus.
 
 ---
 
@@ -1211,10 +1216,10 @@ Reasons:
 6. Aggressive adjacent-chunk suppression degraded evidence quality.
 7. Original passage text and citation metadata remain unchanged.
 8. Retrieval, reranking, and context selection remain independently testable.
-9. Five passages provide a practical initial generation context without introducing an arbitrary large prompt.
-10. The strategy is straightforward to reevaluate later when generation-level metrics become available.
+9. Five passages provide a practical initial generation context.
+10. The strategy can be reevaluated later with generation-level metrics.
 
-Experimental context selectors remain in the repository for future controlled comparisons.
+Experimental selectors remain available for future controlled comparisons.
 
 ---
 
@@ -1253,17 +1258,259 @@ The selector alone decides which passages continue to generation.
 
 No earlier stage is truncated merely to implement generation context size.
 
-Dependencies remain injectable for:
+---
 
-* tests
-* FastAPI
-* Streamlit
-* future generation orchestration
-* future experimental selectors
+## Generation Service Architecture
+
+Provider-independent generation contract:
+
+`src/generation/base.py`
+
+Tests:
+
+`tests/test_generation_base.py`
+
+Core request contract:
+
+```python
+GenerationRequest(
+    query: str,
+    context: tuple[RerankedResult, ...],
+    answer_language: str,
+)
+```
+
+Core result contract:
+
+```python
+GenerationResult(
+    answer_text: str,
+    provider: str | None = None,
+    model: str | None = None,
+)
+```
+
+Provider interface:
+
+```python
+GenerationService.generate(
+    request: GenerationRequest,
+) -> GenerationResult
+```
+
+Shared request builder:
+
+`build_generation_request()`
+
+Shared result builder:
+
+`build_generation_result()`
 
 ---
 
-## Current Production Retrieval and Context Stack
+## Generation Request Contract
+
+`GenerationRequest` contains:
+
+* normalized user query
+* immutable selected evidence container
+* requested answer language
+
+The evidence container is:
+
+```python
+tuple[RerankedResult, ...]
+```
+
+The tuple is immutable, but the original `RerankedResult` objects are preserved exactly.
+
+This ensures generation continues to retain:
+
+* original `chunk_text`
+* document title
+* organization
+* document ID
+* page provenance
+* source URL
+* language
+* category
+* document type
+* chunk ID
+* chunk index
+* token count
+* retrieval score
+* reranker score
+* original first-stage rank
+
+The generation layer does not rewrite, summarize, or mutate evidence merely to create the provider-independent request.
+
+---
+
+## Generation Request Validation
+
+`build_generation_request()` validates common inputs before they reach any LLM provider.
+
+Current rules:
+
+### Query
+
+The query is trimmed.
+
+Blank queries raise:
+
+```text
+ValueError
+```
+
+### Answer language
+
+The answer-language value is:
+
+* trimmed
+* normalized to lowercase
+
+Blank answer-language values raise:
+
+```text
+ValueError
+```
+
+The generic contract intentionally does not yet restrict the provider to only English and Nepali.
+
+V1 currently targets English and Nepali, but the abstraction remains provider-independent.
+
+### Context
+
+At least one selected evidence passage is required.
+
+Empty context raises:
+
+```text
+ValueError
+```
+
+This is intentional.
+
+A concrete LLM provider should not silently receive no evidence and then generate an unsupported answer from model knowledge.
+
+Final user-facing insufficient-evidence behavior will be implemented as a later RAG layer.
+
+---
+
+## Generation Result Contract
+
+`GenerationResult` contains:
+
+* `answer_text`
+* optional provider name
+* optional model name
+
+The provider/model fields support future:
+
+* logging
+* diagnostics
+* evaluation
+* provider comparison
+* experiment tracking
+* operational observability
+
+Downstream code does not need to understand provider-specific SDK response objects.
+
+---
+
+## Generation Result Validation
+
+`build_generation_result()`:
+
+* trims generated answer text
+* rejects blank answers
+* normalizes blank provider metadata to `None`
+* normalizes blank model metadata to `None`
+
+A concrete provider therefore returns one stable application-level result contract rather than leaking provider SDK objects into the rest of the RAG system.
+
+---
+
+## Generation Abstraction Design Decision
+
+The generation abstraction is intentionally narrow.
+
+It currently knows:
+
+* the user question
+* the selected evidence
+* the desired answer language
+* the returned answer text
+* optional provider/model provenance
+
+It intentionally does **not** know:
+
+* how Gemini authentication works
+* how Gemini requests are sent
+* which Gemini model is selected
+* how the grounded prompt is constructed
+* how evidence is labelled inside the prompt
+* how citations appear in the final answer
+* how citations are validated
+* when the system should refuse
+* how insufficient evidence is detected
+
+This separation keeps future components independently testable.
+
+---
+
+## Why Generation Requires Evidence
+
+The current generic request builder rejects empty selected context.
+
+This establishes a strong architectural invariant:
+
+```text
+No selected evidence
+        !=
+call the LLM anyway
+```
+
+The later RAG orchestration layer must explicitly decide what to do when retrieval/context selection returns no usable evidence.
+
+Possible future behavior may include:
+
+* returning an insufficient-evidence result
+* asking for clarification
+* declining to make unsupported claims
+
+That behavior should not be delegated implicitly to Gemini.
+
+---
+
+## Generation Tests
+
+Current generation-abstraction tests verify:
+
+* `GenerationService` is abstract
+* query normalization
+* answer-language normalization
+* selected evidence preservation
+* evidence object identity preservation
+* context-order preservation
+* conversion to immutable context tuple
+* mutation of the caller's original list does not alter the request
+* blank-query rejection
+* blank-language rejection
+* empty-context rejection
+* answer-text normalization
+* provider/model normalization
+* optional provider metadata
+* blank-answer rejection
+* a concrete fake provider can implement the shared contract
+
+Latest full project test suite after adding the abstraction:
+
+`212 passed`
+
+---
+
+## Current Production RAG Stack
 
 ```text
 User Query
@@ -1298,117 +1545,132 @@ RRF                               |
          Context Selection
                    |
                    v
-         Generation Service
+         GenerationRequest
+                   |
+                   v
+         GenerationService
+                   |
+                   v
+          Gemini Provider
               [NEXT]
 ```
 
 ---
 
-## Planned RAG Pipeline
+## Planned Generation Pipeline
+
+Current architectural target:
 
 ```text
-Query
-  ->
-First-stage retrieval
-  ->
-BGE reranking
-  ->
-Fixed top-5 context selection
-  ->
+Selected top-5 evidence
+        |
+        v
+GenerationRequest
+        |
+        v
 GenerationService
-  ->
-GeminiProvider
-  ->
-Grounded prompt
-  ->
-Grounded answer
-  ->
-Citations / evidence
+        |
+        v
+GeminiGenerationService
+        |
+        v
+Grounded Prompt
+        |
+        v
+Gemini API
+        |
+        v
+GenerationResult
+        |
+        v
+Citation / evidence processing
 ```
+
+The exact provider/prompt implementation is not yet complete.
 
 ---
 
 ## Immediate Next Milestone
 
-**Generation Service Abstraction**
+**Gemini Generation Provider**
 
 Goal:
 
-Create a provider-independent generation interface that accepts selected evidence context and produces a structured generation result without coupling the RAG pipeline directly to Gemini.
+Implement a concrete provider behind the existing `GenerationService` abstraction without changing retrieval, reranking, or context-selection behavior.
 
-The generation layer should initially address:
+The Gemini provider should address:
 
-* provider-independent abstraction
-* clean request/result contracts
-* selected evidence input
-* answer text output
-* language handling
-* dependency injection for tests
-* deterministic orchestration boundaries
-* future support for grounded citations
-* future insufficient-evidence behavior
+* local environment configuration
+* API authentication
+* model configuration
+* request construction
+* timeout behavior
+* retry behavior where appropriate
+* response parsing
+* common error handling
+* conversion to `GenerationResult`
+* dependency injection/testability
+* provider/model provenance
 
-The generic generation abstraction should not hard-code:
+The provider should **not** yet absorb unrelated responsibilities.
 
-* Gemini-specific API behavior
+Do not combine all of the following into the initial Gemini provider:
+
+* final grounded prompt design
 * citation rendering
-* final refusal policy
-* retrieval logic
-* reranking logic
-* context-selection logic
+* citation correctness validation
+* insufficient-evidence policy
+* end-to-end RAG evaluation
 
-Those concerns should remain separate pipeline layers.
+Those remain separate milestones.
 
 ---
 
-## Generation Design Constraints
+## Grounded Prompt — Future Milestone
 
-The next implementation should preserve the architecture already established.
+The grounded prompt has **not yet been selected or implemented**.
 
-Generation should consume the selected context rather than:
+It will need to encode rules such as:
 
-* rerunning retrieval
-* rerunning reranking
-* selecting new chunks independently
-* mutating original passage text
+* answer only from supplied evidence
+* preserve distinctions between documents
+* do not invent unsupported government policy or law
+* handle multilingual evidence
+* answer in the requested language
+* explicitly separate evidence blocks
+* retain identifiers required for citations
 
-Selected context currently consists of:
+Prompt construction should be deterministic and testable independently from the Gemini transport/provider.
 
-`list[RerankedResult]`
+---
 
-Each selected item retains:
+## Citation and Evidence Generation — Future Milestone
 
-* original passage text
+Final citations are not yet implemented.
+
+The project already preserves metadata required for later citation generation:
+
 * title
 * organization
 * document ID
-* page provenance
+* page range
 * source URL
-* language
-* reranker score
-* first-stage rank
 * chunk ID
-* chunk index
-* token count
+* selected evidence order
 
-This information will later support:
+Citation generation should not depend on the LLM inventing source metadata.
 
-* grounded prompt construction
-* source labels
-* inline citations
-* evidence panels
-* answer traceability
-* groundedness evaluation
+Where possible, source attribution should be constructed or validated from the actual selected evidence objects.
 
 ---
 
-## Insufficient Evidence
+## Insufficient Evidence — Future Milestone
 
-Insufficient-evidence behavior has **not yet been implemented**.
+Insufficient-evidence behavior has not yet been implemented.
 
-It should not be conflated with context selection.
+It should not be conflated with context selection or the generic generation provider.
 
-Current context selection simply chooses the strongest available reranked evidence.
+Current context selection chooses the strongest available evidence.
 
 Future work must determine when the system should:
 
@@ -1426,38 +1688,17 @@ Potential future signals may include:
 * generation groundedness
 * citation support
 
-No score threshold should be added to production without evaluation.
-
----
-
-## Remaining Major Work
-
-After context selection:
-
-1. Generation service abstraction
-2. Gemini generation provider
-3. Grounded prompt construction
-4. Citation/evidence generation
-5. Insufficient-evidence handling
-6. End-to-end RAG evaluation
-7. FastAPI application
-8. Streamlit interface
-9. Structured logging
-10. MLflow experiment tracking
-11. Docker/Compose production integration
-12. CI refinement
-13. README and architecture documentation
-14. Portfolio screenshots/demo
+No production threshold should be added without evaluation.
 
 ---
 
 ## End-to-End Evaluation Still Required
 
-Retrieval and context selection are evaluated independently.
+Retrieval and context selection have been evaluated independently.
 
-Full RAG evaluation remains future work.
+Generation-level evaluation remains future work.
 
-Generation-level evaluation should eventually measure:
+Full RAG evaluation should eventually measure:
 
 * answer relevance
 * groundedness
@@ -1480,11 +1721,11 @@ Retrieval metrics alone must not be treated as proof of answer quality.
 
 ---
 
-## Important Current Findings
+## Important Current Production Decisions
 
-### Retrieval
+### First-stage retrieval
 
-Selected first-stage architecture:
+Selected architecture:
 
 ```text
 same-language:
@@ -1494,7 +1735,7 @@ cross-lingual:
 dense_contextual only
 ```
 
-Raw dense remains stored for diagnostics but is not in production retrieval.
+Raw dense remains stored for controlled diagnostics.
 
 ### Reranking
 
@@ -1510,8 +1751,6 @@ Document: <title>
 <original chunk_text>
 ```
 
-Title-aware reranking substantially improved MRR and corrected a documented source-confusion case.
-
 ### Context selection
 
 Selected strategy:
@@ -1523,9 +1762,66 @@ Rejected as production defaults:
 * strict-prefix token budgeting
 * adjacent-chunk suppression
 
-Reason:
+### Generation abstraction
 
-Neither produced a better measured quality/cost tradeoff than fixed top-5.
+Selected architecture:
+
+```text
+GenerationRequest
+        ->
+GenerationService
+        ->
+GenerationResult
+```
+
+Concrete provider:
+
+**not yet implemented**
+
+Next provider:
+
+**Gemini**
+
+---
+
+## Architecture Principles Established So Far
+
+The project intentionally separates:
+
+```text
+Retrieval
+   |
+   v
+Reranking
+   |
+   v
+Context Selection
+   |
+   v
+Generation Contract
+   |
+   v
+Generation Provider
+   |
+   v
+Prompt / Grounding
+   |
+   v
+Citation / Evidence
+```
+
+Important consequences:
+
+* retrieval remains independently callable
+* reranking remains independently callable
+* context selection does not rerun retrieval
+* generation does not rerun retrieval
+* generation does not rerun reranking
+* generation does not choose its own evidence
+* provider implementations do not define retrieval policy
+* original passage text remains canonical
+* source provenance is preserved throughout the pipeline
+* experiments remain separate from production defaults until measured
 
 ---
 
@@ -1534,7 +1830,13 @@ Neither produced a better measured quality/cost tradeoff than fixed top-5.
 Latest completed full test run:
 
 ```text
-199 passed in 1.96s
+212 passed in 2.56s
+```
+
+Previous committed Context Selection milestone:
+
+```text
+199 passed
 ```
 
 Latest validation:
@@ -1547,13 +1849,21 @@ Result:
 
 clean
 
-The Context Selection milestone is ready for final staged validation, commit, and push.
+Current locally changed files should include:
+
+```text
+M docs/project_status.md
+?? src/generation/
+?? tests/test_generation_base.py
+```
+
+The exact `git status --short` output should be checked before staging.
 
 ---
 
-## Git Workflow for Completing Current Milestone
+## Git Workflow for Completing Generation Service Abstraction
 
-Before commit:
+Run final validation:
 
 ```text
 python -m pytest -q
@@ -1561,24 +1871,24 @@ git diff --check
 git status --short
 ```
 
-Stage the Context Selection milestone:
+Expected test baseline:
+
+```text
+212 passed
+```
+
+Stage only this milestone:
 
 ```text
 git add docs/project_status.md
-git add src/retrieval/dense_retriever.py
-git add src/context_selection
-git add src/evaluation/compare_context_selection.py
-git add tests/test_dense_retriever.py
-git add tests/test_adjacent_chunk_context_selector.py
-git add tests/test_compare_context_selection.py
-git add tests/test_context_selector_base.py
-git add tests/test_run_context_selection.py
-git add tests/test_token_budget_context_selector.py
+git add src/generation
+git add tests/test_generation_base.py
 ```
 
-Validate staged changes:
+Inspect staged files:
 
 ```text
+git status --short
 git diff --cached --check
 git diff --cached --stat
 ```
@@ -1586,23 +1896,51 @@ git diff --cached --stat
 Commit:
 
 ```text
-git commit -m "Add evaluated context selection pipeline"
+git commit -m "Add generation service abstraction"
 ```
 
-Push:
+Push explicitly:
 
 ```text
 git push origin main
 ```
 
-Then verify:
+Verify:
 
 ```text
 git status --short
 git log -1 --oneline
 ```
 
-The milestone is complete only after the push succeeds and the working tree is clean.
+The milestone is complete only after:
+
+* tests remain green
+* staged diff check is clean
+* commit succeeds
+* push succeeds
+* working tree is clean
+
+---
+
+## Remaining Major Work
+
+After the Generation Service abstraction:
+
+1. Gemini generation provider
+2. Grounded prompt construction
+3. Citation/evidence generation
+4. Insufficient-evidence handling
+5. End-to-end RAG evaluation
+6. FastAPI application
+7. Streamlit interface
+8. Structured logging
+9. MLflow experiment tracking
+10. Docker/Compose production integration
+11. CI refinement
+12. environment/configuration refinement
+13. README and architecture documentation
+14. benchmark documentation
+15. portfolio screenshots/demo
 
 ---
 
@@ -1655,10 +1993,13 @@ Additional rules:
 * Keep reranking independently callable.
 * Context selection must consume reranked results rather than repeat retrieval.
 * Generation must consume selected evidence rather than repeat retrieval, reranking, or selection.
+* Keep Gemini-specific behavior behind the generic `GenerationService`.
+* Do not leak provider SDK response objects into downstream application code.
 * Preserve source provenance throughout the pipeline.
 * All substantive Python code should contain useful comments for assumptions and non-obvious behavior.
 * Never commit `HF_TOKEN`.
 * Never commit `HF_RERANKER_ENDPOINT_URL`.
-* Do not introduce production thresholds, diversity rules, or deduplication heuristics without evaluation evidence.
+* Future Gemini credentials must also remain outside Git.
+* Do not introduce production thresholds, diversity rules, deduplication heuristics, or refusal thresholds without evaluation evidence.
 * Treat repository code, tests, benchmark output, and Git history as the technical source of truth.
-* Treat this file as a handoff/checkpoint document and update it at meaningful milestones rather than every small change.
+* Treat this file as a handoff/checkpoint document and update it at meaningful milestones rather than every small code change.
