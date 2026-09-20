@@ -444,3 +444,28 @@ def test_prompt_is_deterministic() -> None:
     )
 
     assert first == second
+
+
+def test_prompt_requires_evidence_citations() -> None:
+    """Grounded answers should explicitly cite supporting evidence IDs."""
+
+    prompt = (
+        GroundedPromptBuilder()(
+            make_request()
+        )
+    )
+
+    assert (
+        "Cite factual claims from the supplied evidence"
+        in prompt
+    )
+
+    assert (
+        "immediately after the sentence or clause it supports"
+        in prompt
+    )
+
+    assert (
+        "Do not invent or alter evidence labels"
+        in prompt
+    )
