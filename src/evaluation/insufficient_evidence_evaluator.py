@@ -1,33 +1,41 @@
 """Insufficient-evidence benchmark contracts and metrics for NepalGov AI.
 
 This module defines a dedicated evaluation dataset for determining whether the
-production RAG pipeline answers when evidence should be sufficient and withholds
-when the indexed corpus should be insufficient.
+production RAG pipeline:
+
+- answers when evidence should be sufficient,
+- produces a useful accepted response when only partial evidence is available,
+- withholds when the indexed corpus should be insufficient.
 
 The existing retrieval benchmark cannot represent unanswerable questions
 because it requires at least one relevant passage. This evaluator therefore uses
 a separate schema.
 
-The metrics here evaluate the structural pipeline decision:
+The structural metrics here evaluate the pipeline decision:
 
 - accepted
 - withheld
 
-They do not by themselves determine whether an accepted provider response
-verbally states that evidence is insufficient. Generated answer text must remain
-available in the persisted benchmark output for later semantic inspection.
+For partial-evidence cases, structural acceptance is considered the desired
+guard outcome because the application must retain the supported portion of the
+answer. A separate human response-behavior review determines whether the model
+actually limits unsupported portions safely.
+
+These structural metrics therefore do not by themselves determine whether an
+accepted provider response is semantically complete, partial, unsafe, or an
+explicit abstention.
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
 from collections.abc import (
     Iterable,
     Mapping,
 )
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 from src.rag.pipeline import (
     RAGResult,
@@ -35,10 +43,12 @@ from src.rag.pipeline import (
 
 
 EXPECTED_BEHAVIOR_ANSWER = "answer"
+EXPECTED_BEHAVIOR_PARTIAL = "partial"
 EXPECTED_BEHAVIOR_WITHHOLD = "withhold"
 
 SUPPORTED_EXPECTED_BEHAVIORS = (
     EXPECTED_BEHAVIOR_ANSWER,
+    EXPECTED_BEHAVIOR_PARTIAL,
     EXPECTED_BEHAVIOR_WITHHOLD,
 )
 
@@ -335,37 +345,51 @@ def parse_insufficient_evidence_record(
 
     if (
         expected_behavior
-        == EXPECTED_BEHAVIOR_ANSWER
+        in {
+            EXPECTED_BEHAVIOR_ANSWER,
+            EXPECTED_BEHAVIOR_PARTIAL,
+        }
         and not expected_document_ids
     ):
         raise ValueError(
             f"{prefix}{question_id}: "
-            "answerable controls require "
+            "answer and partial cases require "
             "at least one expected document."
         )
 
-    if (
-        case_type
-        == "answerable_control"
-        and expected_behavior
-        != EXPECTED_BEHAVIOR_ANSWER
-    ):
-        raise ValueError(
-            f"{prefix}{question_id}: "
-            "answerable_control must use "
-            "expected_behavior='answer'."
-        )
+    expected_behavior_by_case_type = {
+        "answerable_control": (
+            EXPECTED_BEHAVIOR_ANSWER
+        ),
+        "out_of_corpus_document": (
+            EXPECTED_BEHAVIOR_WITHHOLD
+        ),
+        "out_of_corpus_period": (
+            EXPECTED_BEHAVIOR_WITHHOLD
+        ),
+        "partial_evidence": (
+            EXPECTED_BEHAVIOR_PARTIAL
+        ),
+        "mixed_supported_unsupported": (
+            EXPECTED_BEHAVIOR_PARTIAL
+        ),
+    }
+
+    required_behavior = (
+        expected_behavior_by_case_type[
+            case_type
+        ]
+    )
 
     if (
-        case_type
-        != "answerable_control"
-        and expected_behavior
-        == EXPECTED_BEHAVIOR_ANSWER
+        expected_behavior
+        != required_behavior
     ):
         raise ValueError(
             f"{prefix}{question_id}: "
-            "only answerable_control cases "
-            "may currently expect an answer."
+            f"{case_type} must use "
+            "expected_behavior="
+            f"{required_behavior!r}."
         )
 
     reference_question_id = (
@@ -546,6 +570,11 @@ def evaluate_insufficient_evidence_result(
         == EXPECTED_BEHAVIOR_ANSWER
     )
 
+    expected_partial = (
+        record.expected_behavior
+        == EXPECTED_BEHAVIOR_PARTIAL
+    )
+
     expected_withhold = (
         record.expected_behavior
         == EXPECTED_BEHAVIOR_WITHHOLD
@@ -553,7 +582,10 @@ def evaluate_insufficient_evidence_result(
 
     correct_decision = (
         (
-            expected_answer
+            (
+                expected_answer
+                or expected_partial
+            )
             and result.accepted
         )
         or (
@@ -568,7 +600,10 @@ def evaluate_insufficient_evidence_result(
     )
 
     false_withhold = (
-        expected_answer
+        (
+            expected_answer
+            or expected_partial
+        )
         and result.withheld
     )
 
@@ -651,6 +686,15 @@ def aggregate_insufficient_evidence_metrics(
         )
     ]
 
+    partial_items = [
+        item
+        for item in items
+        if (
+            item.expected_behavior
+            == EXPECTED_BEHAVIOR_PARTIAL
+        )
+    ]
+
     withhold_items = [
         item
         for item in items
@@ -660,6 +704,11 @@ def aggregate_insufficient_evidence_metrics(
         )
     ]
 
+    expected_accept_items = (
+        answer_items
+        + partial_items
+    )
+
     correct_count = sum(
         item.correct_decision
         for item in items
@@ -668,6 +717,11 @@ def aggregate_insufficient_evidence_metrics(
     accepted_answer_count = sum(
         item.accepted
         for item in answer_items
+    )
+
+    accepted_partial_count = sum(
+        item.accepted
+        for item in partial_items
     )
 
     withheld_withhold_count = sum(
@@ -692,6 +746,9 @@ def aggregate_insufficient_evidence_metrics(
         "expected_answer_count": len(
             answer_items
         ),
+        "expected_partial_count": len(
+            partial_items
+        ),
         "expected_withhold_count": len(
             withhold_items
         ),
@@ -711,6 +768,14 @@ def aggregate_insufficient_evidence_metrics(
                 accepted_answer_count,
                 len(
                     answer_items
+                ),
+            )
+        ),
+        "partial_case_acceptance_rate": (
+            _safe_ratio(
+                accepted_partial_count,
+                len(
+                    partial_items
                 ),
             )
         ),
@@ -740,7 +805,7 @@ def aggregate_insufficient_evidence_metrics(
             _safe_ratio(
                 false_withhold_count,
                 len(
-                    answer_items
+                    expected_accept_items
                 ),
             )
         ),

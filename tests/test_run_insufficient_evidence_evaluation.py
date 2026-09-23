@@ -9,6 +9,7 @@ import pytest
 
 from src.evaluation.insufficient_evidence_evaluator import (
     EXPECTED_BEHAVIOR_ANSWER,
+    EXPECTED_BEHAVIOR_PARTIAL,
     EXPECTED_BEHAVIOR_WITHHOLD,
     InsufficientEvidenceRecord,
     evaluate_insufficient_evidence_result,
@@ -26,6 +27,7 @@ from src.evaluation.run_insufficient_evidence_evaluation import (
     run_evaluation,
     validate_answerable_controls,
     validate_limit,
+    validate_run_config_id,
 )
 from src.generation.evidence_guard import (
     EvidenceGuardReason,
@@ -72,7 +74,10 @@ def make_record(
                     "constitution_nepal_current_en",
                 )
                 if expected_behavior
-                == EXPECTED_BEHAVIOR_ANSWER
+                in {
+                    EXPECTED_BEHAVIOR_ANSWER,
+                    EXPECTED_BEHAVIOR_PARTIAL,
+                }
                 else ()
             ),
             reference_question_id=(
@@ -358,6 +363,7 @@ def make_output_row(
     record: InsufficientEvidenceRecord,
     *,
     accepted: bool = True,
+    run_config_id: str = RUN_CONFIG_ID,
 ) -> dict:
     """Build one valid persisted output row."""
 
@@ -387,6 +393,9 @@ def make_output_row(
             record,
             result,
             metrics,
+            run_config_id=(
+                run_config_id
+            ),
         )
     )
 
@@ -478,6 +487,25 @@ def test_validate_answerable_controls_rejects_drifted_query() -> None:
         )
 
 
+def test_validate_answerable_controls_ignores_partial_cases() -> None:
+    record = (
+        make_record(
+            question_id="partial",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_PARTIAL
+            ),
+            case_type="partial_evidence",
+        )
+    )
+
+    validate_answerable_controls(
+        [
+            record,
+        ],
+        [],
+    )
+
+
 def test_build_output_record_preserves_decision_fields() -> None:
     record = (
         make_record()
@@ -515,6 +543,43 @@ def test_build_output_record_preserves_decision_fields() -> None:
             "accepted"
         ]
         is True
+    )
+
+
+def test_build_output_record_supports_custom_run_config() -> None:
+    record = (
+        make_record()
+    )
+
+    result = (
+        make_result(
+            accepted=True
+        )
+    )
+
+    metrics = (
+        evaluate_insufficient_evidence_result(
+            record,
+            result,
+        )
+    )
+
+    row = (
+        build_output_record(
+            record,
+            result,
+            metrics,
+            run_config_id=(
+                "partial-mixed-test"
+            ),
+        )
+    )
+
+    assert (
+        row[
+            "run_config_id"
+        ]
+        == "partial-mixed-test"
     )
 
 
@@ -602,6 +667,84 @@ def test_load_existing_output_reuses_valid_row(
     ) == [
         "ie_en_en_001",
     ]
+
+
+def test_load_existing_output_supports_custom_run_config(
+    tmp_path,
+) -> None:
+    record = (
+        make_record()
+    )
+
+    path = (
+        tmp_path
+        / "results.jsonl"
+    )
+
+    append_output_record(
+        path,
+        make_output_row(
+            record,
+            run_config_id=(
+                "partial-mixed-test"
+            ),
+        ),
+    )
+
+    loaded = (
+        load_existing_output(
+            path,
+            [
+                record,
+            ],
+            run_config_id=(
+                "partial-mixed-test"
+            ),
+        )
+    )
+
+    assert list(
+        loaded
+    ) == [
+        record.question_id,
+    ]
+
+
+def test_load_existing_output_rejects_wrong_run_config(
+    tmp_path,
+) -> None:
+    record = (
+        make_record()
+    )
+
+    path = (
+        tmp_path
+        / "results.jsonl"
+    )
+
+    append_output_record(
+        path,
+        make_output_row(
+            record,
+            run_config_id=(
+                "partial-mixed-test"
+            ),
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="different run_config_id",
+    ):
+        load_existing_output(
+            path,
+            [
+                record,
+            ],
+            run_config_id=(
+                "different-config"
+            ),
+        )
 
 
 def test_load_existing_output_rejects_changed_behavior(
@@ -712,6 +855,166 @@ def test_run_evaluation_uses_query_language_and_target_filter(
     )
 
 
+def test_run_evaluation_persists_custom_run_config(
+    tmp_path,
+) -> None:
+    record = (
+        make_record()
+    )
+
+    dataset_path = (
+        tmp_path
+        / "dataset.jsonl"
+    )
+
+    reference_path = (
+        tmp_path
+        / "reference.jsonl"
+    )
+
+    output_path = (
+        tmp_path
+        / "results.jsonl"
+    )
+
+    write_dataset(
+        dataset_path,
+        [
+            record,
+        ],
+    )
+
+    write_reference_dataset(
+        reference_path
+    )
+
+    pipeline = (
+        FakePipeline()
+    )
+
+    run_evaluation(
+        dataset_path,
+        reference_dataset_path=(
+            reference_path
+        ),
+        output_path=(
+            output_path
+        ),
+        run_config_id=(
+            "partial-mixed-test"
+        ),
+        pipeline_factory=(
+            lambda: pipeline
+        ),
+    )
+
+    row = (
+        json.loads(
+            output_path
+            .read_text(
+                encoding="utf-8"
+            )
+            .strip()
+        )
+    )
+
+    assert (
+        row[
+            "run_config_id"
+        ]
+        == "partial-mixed-test"
+    )
+
+
+def test_run_evaluation_supports_partial_case_without_reference_match(
+    tmp_path,
+) -> None:
+    record = (
+        make_record(
+            question_id="partial",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_PARTIAL
+            ),
+            case_type="partial_evidence",
+        )
+    )
+
+    dataset_path = (
+        tmp_path
+        / "dataset.jsonl"
+    )
+
+    reference_path = (
+        tmp_path
+        / "reference.jsonl"
+    )
+
+    output_path = (
+        tmp_path
+        / "results.jsonl"
+    )
+
+    write_dataset(
+        dataset_path,
+        [
+            record,
+        ],
+    )
+
+    write_reference_dataset(
+        reference_path
+    )
+
+    pipeline = (
+        FakePipeline()
+    )
+
+    metrics, overall = (
+        run_evaluation(
+            dataset_path,
+            reference_dataset_path=(
+                reference_path
+            ),
+            output_path=(
+                output_path
+            ),
+            run_config_id=(
+                "partial-mixed-test"
+            ),
+            pipeline_factory=(
+                lambda: pipeline
+            ),
+        )
+    )
+
+    assert len(
+        metrics
+    ) == 1
+
+    assert (
+        metrics[
+            0
+        ].correct_decision
+        is True
+    )
+
+    assert (
+        overall[
+            "expected_partial_count"
+        ]
+        == 1
+    )
+
+    assert (
+        overall[
+            "partial_case_acceptance_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+
 def test_run_evaluation_resumes_without_repeating_completed(
     tmp_path,
 ) -> None:
@@ -773,6 +1076,89 @@ def test_run_evaluation_resumes_without_repeating_completed(
             ),
             output_path=(
                 output_path
+            ),
+            pipeline_factory=(
+                lambda: pipeline
+            ),
+        )
+    )
+
+    assert len(
+        pipeline.calls
+    ) == 1
+
+    assert len(
+        metrics
+    ) == 2
+
+
+def test_run_evaluation_resumes_custom_run_without_repeating_completed(
+    tmp_path,
+) -> None:
+    first = (
+        make_record(
+            "ie_en_en_001"
+        )
+    )
+
+    second = (
+        make_record(
+            "ie_en_en_002"
+        )
+    )
+
+    dataset_path = (
+        tmp_path
+        / "dataset.jsonl"
+    )
+
+    reference_path = (
+        tmp_path
+        / "reference.jsonl"
+    )
+
+    output_path = (
+        tmp_path
+        / "results.jsonl"
+    )
+
+    write_dataset(
+        dataset_path,
+        [
+            first,
+            second,
+        ],
+    )
+
+    write_reference_dataset(
+        reference_path
+    )
+
+    append_output_record(
+        output_path,
+        make_output_row(
+            first,
+            run_config_id=(
+                "partial-mixed-test"
+            ),
+        ),
+    )
+
+    pipeline = (
+        FakePipeline()
+    )
+
+    metrics, _ = (
+        run_evaluation(
+            dataset_path,
+            reference_dataset_path=(
+                reference_path
+            ),
+            output_path=(
+                output_path
+            ),
+            run_config_id=(
+                "partial-mixed-test"
             ),
             pipeline_factory=(
                 lambda: pipeline
@@ -1094,3 +1480,22 @@ def test_validate_limit_accepts_positive_and_none() -> None:
         )
         == 3
     )
+
+
+def test_validate_run_config_id_accepts_and_strips_text() -> None:
+    assert (
+        validate_run_config_id(
+            " partial-mixed-test "
+        )
+        == "partial-mixed-test"
+    )
+
+
+def test_validate_run_config_id_rejects_empty_text() -> None:
+    with pytest.raises(
+        ValueError,
+        match="run_config_id",
+    ):
+        validate_run_config_id(
+            "   "
+        )

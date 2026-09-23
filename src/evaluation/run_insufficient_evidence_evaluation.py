@@ -1,21 +1,27 @@
 """Production insufficient-evidence evaluation runner for NepalGov AI.
 
-This runner executes the dedicated answer-vs-withhold benchmark through the
+This runner executes the dedicated evidence-sufficiency benchmark through the
 real production RAG pipeline.
 
 Every completed result is persisted immediately so hosted retrieval, reranking,
 and Gemini calls are not repeated after interruption.
 
-The primary metric here is the structural application decision:
+The structural benchmark supports three expected behaviors:
 
-- accepted
-- withheld
+- answer
+- partial
+- withhold
+
+For partial-evidence cases, structural acceptance is the desired guard outcome
+because the supported portion of the generated answer must remain visible.
+Human response-level review is responsible for determining whether the model
+actually limits the unsupported portion safely.
 
 Important limitation:
 
 An accepted RAGResult can still contain provider text that verbally says the
-evidence is insufficient. Therefore structural false acceptance must later be
-inspected together with generated answer text before changing production policy.
+evidence is insufficient. Structural decisions must therefore remain separate
+from semantic response-behavior evaluation.
 """
 
 from __future__ import annotations
@@ -140,6 +146,28 @@ def validate_limit(
     return limit
 
 
+def validate_run_config_id(
+    run_config_id: str,
+) -> str:
+    """Validate and normalize one persisted run configuration ID."""
+
+    if (
+        not isinstance(
+            run_config_id,
+            str,
+        )
+        or not run_config_id.strip()
+    ):
+        raise ValueError(
+            "run_config_id must contain "
+            "non-whitespace text."
+        )
+
+    return (
+        run_config_id.strip()
+    )
+
+
 def validate_answerable_controls(
     records: Sequence[
         InsufficientEvidenceRecord
@@ -250,11 +278,19 @@ def build_output_record(
     record: InsufficientEvidenceRecord,
     result: RAGResult,
     metrics: InsufficientEvidenceQueryMetrics,
+    *,
+    run_config_id: str = RUN_CONFIG_ID,
 ) -> dict[
     str,
     Any,
 ]:
     """Build one durable JSON-serializable benchmark result."""
+
+    clean_run_config_id = (
+        validate_run_config_id(
+            run_config_id
+        )
+    )
 
     citation_result = (
         result.citation_result
@@ -289,7 +325,7 @@ def build_output_record(
             RESULT_SCHEMA_VERSION
         ),
         "run_config_id": (
-            RUN_CONFIG_ID
+            clean_run_config_id
         ),
         "question_id": (
             record.question_id
@@ -452,8 +488,15 @@ def validate_persisted_row(
     record: InsufficientEvidenceRecord,
     *,
     line_number: int,
+    run_config_id: str = RUN_CONFIG_ID,
 ) -> None:
     """Reject stale or incompatible persisted benchmark rows."""
+
+    clean_run_config_id = (
+        validate_run_config_id(
+            run_config_id
+        )
+    )
 
     if (
         row.get(
@@ -472,7 +515,7 @@ def validate_persisted_row(
         row.get(
             "run_config_id"
         )
-        != RUN_CONFIG_ID
+        != clean_run_config_id
     ):
         raise ValueError(
             "Persisted insufficient-"
@@ -543,6 +586,8 @@ def load_existing_output(
     records: Sequence[
         InsufficientEvidenceRecord
     ],
+    *,
+    run_config_id: str = RUN_CONFIG_ID,
 ) -> dict[
     str,
     dict[
@@ -551,6 +596,12 @@ def load_existing_output(
     ],
 ]:
     """Load reusable completed benchmark rows."""
+
+    clean_run_config_id = (
+        validate_run_config_id(
+            run_config_id
+        )
+    )
 
     path = Path(
         output_path
@@ -663,6 +714,9 @@ def load_existing_output(
                 ],
                 line_number=(
                     line_number
+                ),
+                run_config_id=(
+                    clean_run_config_id
                 ),
             )
 
@@ -788,7 +842,7 @@ def print_summary_row(
         InsufficientEvidenceQueryMetrics
     ],
 ) -> None:
-    """Print one compact answer-vs-withhold summary row."""
+    """Print one compact structural evidence-sufficiency summary row."""
 
     summary = (
         aggregate_insufficient_evidence_metrics(
@@ -801,6 +855,7 @@ def print_summary_row(
         f"{summary['question_count']:>5}"
         f"{summary['decision_accuracy']:>10.3f}"
         f"{summary['answer_acceptance_rate']:>10.3f}"
+        f"{summary['partial_case_acceptance_rate']:>10.3f}"
         f"{summary['withholding_success_rate']:>10.3f}"
         f"{summary['guard_false_accept_rate']:>10.3f}"
         f"{summary['guard_false_withhold_rate']:>10.3f}"
@@ -840,7 +895,7 @@ def print_evaluation_summary(
 
     print()
     print(
-        "=" * 79
+        "=" * 89
     )
 
     print(
@@ -848,7 +903,7 @@ def print_evaluation_summary(
     )
 
     print(
-        "=" * 79
+        "=" * 89
     )
 
     print(
@@ -856,13 +911,14 @@ def print_evaluation_summary(
         f"{'N':>5}"
         f"{'Decision':>10}"
         f"{'AnsAcc':>10}"
+        f"{'Partial':>10}"
         f"{'Withhold':>10}"
         f"{'FAcc':>10}"
         f"{'FWith':>10}"
     )
 
     print(
-        "-" * 79
+        "-" * 89
     )
 
     for pair in (
@@ -886,7 +942,7 @@ def print_evaluation_summary(
         )
 
     print(
-        "-" * 79
+        "-" * 89
     )
 
     print_summary_row(
@@ -898,8 +954,9 @@ def print_evaluation_summary(
     print(
         "Case type breakdown"
     )
+
     print(
-        "-" * 79
+        "-" * 89
     )
 
     for case_type in (
@@ -931,6 +988,9 @@ def run_evaluation(
     output_path: str | Path = (
         DEFAULT_OUTPUT_PATH
     ),
+    run_config_id: str = (
+        RUN_CONFIG_ID
+    ),
     limit: int | None = None,
     reset: bool = False,
     pipeline_factory: PipelineFactory = (
@@ -950,6 +1010,12 @@ def run_evaluation(
     normalized_limit = (
         validate_limit(
             limit
+        )
+    )
+
+    clean_run_config_id = (
+        validate_run_config_id(
+            run_config_id
         )
     )
 
@@ -984,6 +1050,9 @@ def run_evaluation(
         load_existing_output(
             path,
             records,
+            run_config_id=(
+                clean_run_config_id
+            ),
         )
     )
 
@@ -1058,6 +1127,9 @@ def run_evaluation(
                         record,
                         result,
                         metrics,
+                        run_config_id=(
+                            clean_run_config_id
+                        ),
                     )
                 )
 
@@ -1073,6 +1145,9 @@ def run_evaluation(
         load_existing_output(
             path,
             records,
+            run_config_id=(
+                clean_run_config_id
+            ),
         )
     )
 
@@ -1115,8 +1190,7 @@ def build_argument_parser(
         argparse.ArgumentParser(
             description=(
                 "Run NepalGov AI's "
-                "answer-vs-withhold "
-                "insufficient-evidence "
+                "evidence-sufficiency "
                 "benchmark."
             )
         )
@@ -1143,6 +1217,13 @@ def build_argument_parser(
         type=Path,
         default=(
             DEFAULT_OUTPUT_PATH
+        ),
+    )
+
+    parser.add_argument(
+        "--run-config-id",
+        default=(
+            RUN_CONFIG_ID
         ),
     )
 
@@ -1177,6 +1258,9 @@ def main(
             ),
             output_path=(
                 args.output
+            ),
+            run_config_id=(
+                args.run_config_id
             ),
             limit=args.limit,
             reset=args.reset,

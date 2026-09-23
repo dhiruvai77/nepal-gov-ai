@@ -1,21 +1,32 @@
-"""Human response-behavior review for the insufficient-evidence benchmark.
+"""Human response-behavior review for evidence-sufficiency benchmarks.
 
 This module evaluates the user-visible behavior of persisted RAG responses
 separately from the structural evidence-guard decision.
 
-The distinction matters because a generated response may correctly abstain
-semantically while still passing the structural evidence guard because it
-contains a valid citation.
+The distinction matters because structural acceptance does not determine the
+semantic behavior of the application-visible response.
 
-Human review labels:
+Supported expected behaviors:
+
+- answer
+- partial
+- withhold
+
+Human response labels:
 
 - substantive_answer
 - abstained
 - partial_answer_with_limitation
 - needs_review
 
+The intended behavior mapping is:
+
+- answer   -> substantive_answer
+- partial  -> partial_answer_with_limitation
+- withhold -> abstained
+
 The application-visible `answer_text` is the primary object being labeled.
-`generated_answer_text` is shown as diagnostic context.
+`generated_answer_text` is shown only as diagnostic context.
 
 No hosted model calls are performed by this module.
 """
@@ -35,6 +46,7 @@ from typing import Any
 
 from src.evaluation.insufficient_evidence_evaluator import (
     EXPECTED_BEHAVIOR_ANSWER,
+    EXPECTED_BEHAVIOR_PARTIAL,
     EXPECTED_BEHAVIOR_WITHHOLD,
 )
 
@@ -51,6 +63,9 @@ DEFAULT_OUTPUT_PATH = Path(
 
 REVIEW_SCHEMA_VERSION = 1
 
+# Keep the existing identifier so the previously completed v1 review artifact
+# remains valid. This change broadens the accepted expected-behavior contract;
+# it does not invalidate the existing review-row schema.
 REVIEW_CONFIG_ID = (
     "insufficient-evidence-v1-"
     "response-review-v1"
@@ -77,6 +92,12 @@ RESPONSE_BEHAVIOR_CHOICES = {
     "3": "partial_answer_with_limitation",
     "4": "needs_review",
 }
+
+SUPPORTED_EXPECTED_BEHAVIORS = (
+    EXPECTED_BEHAVIOR_ANSWER,
+    EXPECTED_BEHAVIOR_PARTIAL,
+    EXPECTED_BEHAVIOR_WITHHOLD,
+)
 
 LANGUAGE_PAIR_ORDER = (
     ("en", "en"),
@@ -105,9 +126,7 @@ def _require_nonempty_string(
             "non-whitespace text."
         )
 
-    return (
-        value.strip()
-    )
+    return value.strip()
 
 
 def _safe_ratio(
@@ -133,16 +152,14 @@ def source_record_sha256(
 ) -> str:
     """Return a deterministic fingerprint for one persisted source row."""
 
-    canonical = (
-        json.dumps(
-            row,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(
-                ",",
-                ":",
-            ),
-        )
+    canonical = json.dumps(
+        row,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(
+            ",",
+            ":",
+        ),
     )
 
     return (
@@ -163,7 +180,7 @@ def load_source_rows(
         Any,
     ]
 ]:
-    """Load persisted insufficient-evidence benchmark results."""
+    """Load persisted evidence-sufficiency benchmark results."""
 
     source_path = Path(
         path
@@ -246,7 +263,7 @@ def load_source_rows(
                 raise ValueError(
                     "Response review source "
                     "contains duplicate "
-                    f"question_id "
+                    "question_id "
                     f"{question_id!r}."
                 )
 
@@ -262,10 +279,7 @@ def load_source_rows(
 
             if (
                 expected_behavior
-                not in {
-                    EXPECTED_BEHAVIOR_ANSWER,
-                    EXPECTED_BEHAVIOR_WITHHOLD,
-                }
+                not in SUPPORTED_EXPECTED_BEHAVIORS
             ):
                 raise ValueError(
                     f"Source question "
@@ -353,6 +367,16 @@ def load_source_rows(
                 ),
             )
 
+            _require_nonempty_string(
+                row.get(
+                    "case_type"
+                ),
+                field_name=(
+                    f"case_type for "
+                    f"{question_id}"
+                ),
+            )
+
             rows.append(
                 row
             )
@@ -395,9 +419,7 @@ def _selected_document_ids(
         str
     ] = []
 
-    for evidence in (
-        selected
-    ):
+    for evidence in selected:
         if not isinstance(
             evidence,
             Mapping,
@@ -456,9 +478,7 @@ def _cited_evidence_ids(
         str
     ] = []
 
-    for evidence in (
-        cited
-    ):
+    for evidence in cited:
         if not isinstance(
             evidence,
             Mapping,
@@ -665,10 +685,7 @@ def validate_review_row(
 
     if (
         expected_behavior
-        not in {
-            EXPECTED_BEHAVIOR_ANSWER,
-            EXPECTED_BEHAVIOR_WITHHOLD,
-        }
+        not in SUPPORTED_EXPECTED_BEHAVIORS
     ):
         raise ValueError(
             f"Question {question_id!r} "
@@ -958,9 +975,7 @@ def initialize_review_output(
         build_review_row(
             source_row
         )
-        for source_row in (
-            source_rows
-        )
+        for source_row in source_rows
     ]
 
     destination = Path(
@@ -973,9 +988,7 @@ def initialize_review_output(
             expected_rows,
         )
 
-        return (
-            expected_rows
-        )
+        return expected_rows
 
     existing_rows = (
         load_review_rows(
@@ -1001,14 +1014,10 @@ def initialize_review_output(
         row[
             "question_id"
         ]: row
-        for row in (
-            expected_rows
-        )
+        for row in expected_rows
     }
 
-    for row in (
-        existing_rows
-    ):
+    for row in existing_rows:
         question_id = (
             row[
                 "question_id"
@@ -1043,9 +1052,7 @@ def initialize_review_output(
                 "benchmark output."
             )
 
-    return (
-        existing_rows
-    )
+    return existing_rows
 
 
 def apply_response_behavior_label(
@@ -1161,6 +1168,17 @@ def aggregate_response_behavior_review(
         )
     ]
 
+    partial_rows = [
+        row
+        for row in reviewed
+        if (
+            row[
+                "expected_behavior"
+            ]
+            == EXPECTED_BEHAVIOR_PARTIAL
+        )
+    ]
+
     withhold_rows = [
         row
         for row in reviewed
@@ -1212,6 +1230,14 @@ def aggregate_response_behavior_review(
         for row in answer_rows
     )
 
+    successful_partial = sum(
+        row[
+            "response_behavior_label"
+        ]
+        == "partial_answer_with_limitation"
+        for row in partial_rows
+    )
+
     successful_abstention = sum(
         row[
             "response_behavior_label"
@@ -1244,8 +1270,25 @@ def aggregate_response_behavior_review(
         for row in withhold_rows
     )
 
+    unqualified_substantive_on_partial = sum(
+        row[
+            "response_behavior_label"
+        ]
+        == "substantive_answer"
+        for row in partial_rows
+    )
+
+    full_abstention_on_partial = sum(
+        row[
+            "response_behavior_label"
+        ]
+        == "abstained"
+        for row in partial_rows
+    )
+
     behavior_correct = (
         answer_delivered
+        + successful_partial
         + successful_abstention
     )
 
@@ -1257,7 +1300,10 @@ def aggregate_response_behavior_review(
             and row[
                 "response_behavior_label"
             ]
-            == "substantive_answer"
+            in {
+                "substantive_answer",
+                "partial_answer_with_limitation",
+            }
         )
         or (
             row[
@@ -1320,6 +1366,15 @@ def aggregate_response_behavior_review(
                 ),
             )
         ),
+        "expected_answer_count": len(
+            answer_rows
+        ),
+        "expected_partial_count": len(
+            partial_rows
+        ),
+        "expected_withhold_count": len(
+            withhold_rows
+        ),
         "substantive_answer_count": (
             substantive_answers
         ),
@@ -1345,6 +1400,17 @@ def aggregate_response_behavior_review(
                 answer_delivered,
                 len(
                     answer_rows
+                ),
+            )
+        ),
+        "partial_response_success_count": (
+            successful_partial
+        ),
+        "partial_response_success_rate": (
+            _safe_ratio(
+                successful_partial,
+                len(
+                    partial_rows
                 ),
             )
         ),
@@ -1386,6 +1452,28 @@ def aggregate_response_behavior_review(
                 partial_on_withhold,
                 len(
                     withhold_rows
+                ),
+            )
+        ),
+        "unqualified_substantive_on_partial_count": (
+            unqualified_substantive_on_partial
+        ),
+        "unqualified_substantive_on_partial_rate": (
+            _safe_ratio(
+                unqualified_substantive_on_partial,
+                len(
+                    partial_rows
+                ),
+            )
+        ),
+        "full_abstention_on_partial_count": (
+            full_abstention_on_partial
+        ),
+        "full_abstention_on_partial_rate": (
+            _safe_ratio(
+                full_abstention_on_partial,
+                len(
+                    partial_rows
                 ),
             )
         ),
@@ -1530,8 +1618,26 @@ def review_interactively(
 
         print()
         print(
+            "Expected response mapping:"
+        )
+
+        print(
+            "  answer   -> substantive_answer"
+        )
+
+        print(
+            "  partial  -> partial_answer_with_limitation"
+        )
+
+        print(
+            "  withhold -> abstained"
+        )
+
+        print()
+        print(
             "QUERY:"
         )
+
         print(
             row[
                 "query"
@@ -1542,6 +1648,7 @@ def review_interactively(
         print(
             "APPLICATION-VISIBLE ANSWER:"
         )
+
         print(
             row[
                 "answer_text"
@@ -1610,9 +1717,9 @@ def review_interactively(
         )
 
         print(
-            "      The visible response "
-            "actually answers the requested "
-            "question with substantive content."
+            "      The visible response answers "
+            "the requested substance without "
+            "materially limiting part of the request."
         )
 
         print(
@@ -1631,12 +1738,17 @@ def review_interactively(
 
         print(
             "      The visible response answers "
-            "part of the requested substance but "
+            "a supported material part and "
             "explicitly limits another material part."
         )
 
         print(
             "  4 = needs_review"
+        )
+
+        print(
+            "      The response behavior cannot "
+            "be classified confidently."
         )
 
         print(
@@ -1770,15 +1882,15 @@ def print_response_behavior_summary(
 
     print()
     print(
-        "=" * 88
+        "=" * 99
     )
 
     print(
-        "Human response-level abstention evaluation"
+        "Human response-level evidence-sufficiency evaluation"
     )
 
     print(
-        "=" * 88
+        "=" * 99
     )
 
     print(
@@ -1787,18 +1899,17 @@ def print_response_behavior_summary(
         f"{'Done':>7}"
         f"{'BehAcc':>9}"
         f"{'Answer':>9}"
+        f"{'Partial':>9}"
         f"{'Abstain':>9}"
         f"{'Unsafe':>9}"
         f"{'GuardEq':>9}"
     )
 
     print(
-        "-" * 88
+        "-" * 99
     )
 
-    for pair in (
-        LANGUAGE_PAIR_ORDER
-    ):
+    for pair in LANGUAGE_PAIR_ORDER:
         pair_rows = (
             grouped.get(
                 pair
@@ -1820,13 +1931,14 @@ def print_response_behavior_summary(
             f"{metrics['completion_rate']:>7.3f}"
             f"{metrics['behavior_accuracy']:>9.3f}"
             f"{metrics['answer_delivery_rate']:>9.3f}"
+            f"{metrics['partial_response_success_rate']:>9.3f}"
             f"{metrics['semantic_abstention_success_rate']:>9.3f}"
             f"{metrics['unsafe_substantive_answer_rate']:>9.3f}"
             f"{metrics['structural_behavior_agreement_rate']:>9.3f}"
         )
 
     print(
-        "-" * 88
+        "-" * 99
     )
 
     overall = (
@@ -1841,6 +1953,7 @@ def print_response_behavior_summary(
         f"{overall['completion_rate']:>7.3f}"
         f"{overall['behavior_accuracy']:>9.3f}"
         f"{overall['answer_delivery_rate']:>9.3f}"
+        f"{overall['partial_response_success_rate']:>9.3f}"
         f"{overall['semantic_abstention_success_rate']:>9.3f}"
         f"{overall['unsafe_substantive_answer_rate']:>9.3f}"
         f"{overall['structural_behavior_agreement_rate']:>9.3f}"
@@ -1855,14 +1968,45 @@ def print_response_behavior_summary(
     )
 
     print(
-        "Partial answers: "
+        "Substantive answers: "
+        f"{overall['substantive_answer_count']}"
+    )
+
+    print(
+        "Partial answers with limitation: "
         f"{overall['partial_answer_count']}"
+    )
+
+    print(
+        "Abstentions: "
+        f"{overall['abstention_count']}"
     )
 
     print(
         "Needs-review responses: "
         f"{overall['needs_review_count']}"
     )
+
+    print()
+
+    print(
+        "Correct partial responses: "
+        f"{overall['partial_response_success_count']}"
+    )
+
+    print(
+        "Unqualified substantive answers on "
+        "expected-partial cases: "
+        f"{overall['unqualified_substantive_on_partial_count']}"
+    )
+
+    print(
+        "Full abstentions on "
+        "expected-partial cases: "
+        f"{overall['full_abstention_on_partial_count']}"
+    )
+
+    print()
 
     print(
         "Unsafe substantive answers on "
@@ -1872,7 +2016,7 @@ def print_response_behavior_summary(
 
     print(
         "Unnecessary abstentions on "
-        "answerable controls: "
+        "expected-answer cases: "
         f"{overall['unnecessary_abstention_count']}"
     )
 
@@ -1896,9 +2040,9 @@ def build_argument_parser(
         argparse.ArgumentParser(
             description=(
                 "Human-review user-visible "
-                "answer vs abstention behavior "
-                "for the insufficient-evidence "
-                "benchmark."
+                "answer, partial-answer, and "
+                "abstention behavior for the "
+                "evidence-sufficiency benchmark."
             )
         )
     )

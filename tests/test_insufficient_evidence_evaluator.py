@@ -8,6 +8,7 @@ import pytest
 
 from src.evaluation.insufficient_evidence_evaluator import (
     EXPECTED_BEHAVIOR_ANSWER,
+    EXPECTED_BEHAVIOR_PARTIAL,
     EXPECTED_BEHAVIOR_WITHHOLD,
     InsufficientEvidenceRecord,
     aggregate_insufficient_evidence_metrics,
@@ -53,7 +54,10 @@ def make_record(
                     "example_document",
                 )
                 if expected_behavior
-                == EXPECTED_BEHAVIOR_ANSWER
+                in {
+                    EXPECTED_BEHAVIOR_ANSWER,
+                    EXPECTED_BEHAVIOR_PARTIAL,
+                }
                 else ()
             ),
             reference_question_id=(
@@ -202,6 +206,87 @@ def test_parse_valid_withhold_case() -> None:
     )
 
 
+def test_parse_valid_partial_evidence_case() -> None:
+    data = {
+        "question_id": "partial",
+        "query": (
+            "Compare the 2025/26 and 2026/27 "
+            "Budget Speech scholarship allocations."
+        ),
+        "query_language": "en",
+        "target_language": "en",
+        "category": "education",
+        "expected_behavior": "partial",
+        "case_type": "partial_evidence",
+        "expected_document_ids": [
+            "budget_speech_2025_26_en",
+        ],
+        "reference_question_id": None,
+        "notes": (
+            "Only the 2025/26 Budget Speech "
+            "is indexed."
+        ),
+    }
+
+    record = (
+        parse_insufficient_evidence_record(
+            data
+        )
+    )
+
+    assert (
+        record.expected_behavior
+        == EXPECTED_BEHAVIOR_PARTIAL
+    )
+
+    assert (
+        record.case_type
+        == "partial_evidence"
+    )
+
+
+def test_parse_valid_mixed_supported_unsupported_case() -> None:
+    data = {
+        "question_id": "mixed",
+        "query": (
+            "What constitutional right is "
+            "supported, and what does the "
+            "unindexed law additionally require?"
+        ),
+        "query_language": "en",
+        "target_language": "en",
+        "category": "mixed",
+        "expected_behavior": "partial",
+        "case_type": (
+            "mixed_supported_unsupported"
+        ),
+        "expected_document_ids": [
+            "constitution_nepal_current_en",
+        ],
+        "reference_question_id": None,
+        "notes": (
+            "One requested component is "
+            "supported and one is not."
+        ),
+    }
+
+    record = (
+        parse_insufficient_evidence_record(
+            data
+        )
+    )
+
+    assert (
+        record.expected_behavior
+        == EXPECTED_BEHAVIOR_PARTIAL
+    )
+
+    assert (
+        record.case_type
+        == "mixed_supported_unsupported"
+    )
+
+
 def test_parse_rejects_unknown_behavior() -> None:
     data = (
         valid_data()
@@ -238,6 +323,29 @@ def test_answerable_control_requires_documents() -> None:
         )
 
 
+def test_partial_case_requires_documents() -> None:
+    data = {
+        "question_id": "partial",
+        "query": "Partially answerable question.",
+        "query_language": "en",
+        "target_language": "en",
+        "category": "education",
+        "expected_behavior": "partial",
+        "case_type": "partial_evidence",
+        "expected_document_ids": [],
+        "reference_question_id": None,
+        "notes": "Test.",
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="at least one expected document",
+    ):
+        parse_insufficient_evidence_record(
+            data
+        )
+
+
 def test_answerable_control_requires_reference_question() -> None:
     data = (
         valid_data()
@@ -250,6 +358,86 @@ def test_answerable_control_requires_reference_question() -> None:
     with pytest.raises(
         ValueError,
         match="reference_question_id",
+    ):
+        parse_insufficient_evidence_record(
+            data
+        )
+
+
+def test_partial_evidence_rejects_withhold_behavior() -> None:
+    data = {
+        "question_id": "partial",
+        "query": "Partial question.",
+        "query_language": "en",
+        "target_language": "en",
+        "category": "education",
+        "expected_behavior": "withhold",
+        "case_type": "partial_evidence",
+        "expected_document_ids": [
+            "budget_speech_2025_26_en",
+        ],
+        "reference_question_id": None,
+        "notes": "Test.",
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="partial_evidence must use",
+    ):
+        parse_insufficient_evidence_record(
+            data
+        )
+
+
+def test_mixed_case_rejects_answer_behavior() -> None:
+    data = {
+        "question_id": "mixed",
+        "query": "Mixed question.",
+        "query_language": "en",
+        "target_language": "en",
+        "category": "mixed",
+        "expected_behavior": "answer",
+        "case_type": (
+            "mixed_supported_unsupported"
+        ),
+        "expected_document_ids": [
+            "constitution_nepal_current_en",
+        ],
+        "reference_question_id": None,
+        "notes": "Test.",
+    }
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "mixed_supported_unsupported "
+            "must use"
+        ),
+    ):
+        parse_insufficient_evidence_record(
+            data
+        )
+
+
+def test_out_of_corpus_case_requires_withhold_behavior() -> None:
+    data = {
+        "question_id": "out",
+        "query": "Out-of-corpus question.",
+        "query_language": "en",
+        "target_language": "en",
+        "category": "out_of_corpus",
+        "expected_behavior": "partial",
+        "case_type": "out_of_corpus_document",
+        "expected_document_ids": [
+            "example",
+        ],
+        "reference_question_id": None,
+        "notes": "Test.",
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="out_of_corpus_document must use",
     ):
         parse_insufficient_evidence_record(
             data
@@ -371,6 +559,98 @@ def test_answerable_withhold_is_false_withhold() -> None:
     )
 
 
+def test_partial_accept_is_structurally_correct() -> None:
+    metric = (
+        evaluate_insufficient_evidence_result(
+            make_record(
+                question_id="partial",
+                expected_behavior=(
+                    EXPECTED_BEHAVIOR_PARTIAL
+                ),
+                case_type="partial_evidence",
+            ),
+            make_result(
+                accepted=True
+            ),
+        )
+    )
+
+    assert (
+        metric.correct_decision
+        is True
+    )
+
+    assert (
+        metric.false_accept
+        is False
+    )
+
+    assert (
+        metric.false_withhold
+        is False
+    )
+
+
+def test_partial_withhold_is_false_withhold() -> None:
+    metric = (
+        evaluate_insufficient_evidence_result(
+            make_record(
+                question_id="partial",
+                expected_behavior=(
+                    EXPECTED_BEHAVIOR_PARTIAL
+                ),
+                case_type="partial_evidence",
+            ),
+            make_result(
+                accepted=False,
+                reason=(
+                    EvidenceGuardReason
+                    .MISSING_CITATIONS
+                ),
+            ),
+        )
+    )
+
+    assert (
+        metric.correct_decision
+        is False
+    )
+
+    assert (
+        metric.false_accept
+        is False
+    )
+
+    assert (
+        metric.false_withhold
+        is True
+    )
+
+
+def test_mixed_accept_is_structurally_correct() -> None:
+    metric = (
+        evaluate_insufficient_evidence_result(
+            make_record(
+                question_id="mixed",
+                expected_behavior=(
+                    EXPECTED_BEHAVIOR_PARTIAL
+                ),
+                case_type=(
+                    "mixed_supported_unsupported"
+                ),
+            ),
+            make_result(
+                accepted=True
+            ),
+        )
+    )
+
+    assert (
+        metric.correct_decision
+        is True
+    )
+
+
 def test_unanswerable_withhold_is_correct() -> None:
     metric = (
         evaluate_insufficient_evidence_result(
@@ -431,7 +711,7 @@ def test_unanswerable_accept_is_false_accept() -> None:
     )
 
 
-def test_aggregate_metrics() -> None:
+def test_aggregate_metrics_without_partial_cases() -> None:
     metrics = [
         evaluate_insufficient_evidence_result(
             make_record(
@@ -521,6 +801,22 @@ def test_aggregate_metrics() -> None:
 
     assert (
         summary[
+            "expected_partial_count"
+        ]
+        == 0
+    )
+
+    assert (
+        summary[
+            "partial_case_acceptance_rate"
+        ]
+        == pytest.approx(
+            0.0
+        )
+    )
+
+    assert (
+        summary[
             "withholding_success_rate"
         ]
         == pytest.approx(
@@ -543,6 +839,158 @@ def test_aggregate_metrics() -> None:
         ]
         == pytest.approx(
             0.5
+        )
+    )
+
+
+def test_aggregate_metrics_with_partial_cases() -> None:
+    metrics = [
+        evaluate_insufficient_evidence_result(
+            make_record(
+                question_id="answer",
+            ),
+            make_result(
+                accepted=True
+            ),
+        ),
+        evaluate_insufficient_evidence_result(
+            make_record(
+                question_id="partial_ok",
+                expected_behavior=(
+                    EXPECTED_BEHAVIOR_PARTIAL
+                ),
+                case_type="partial_evidence",
+            ),
+            make_result(
+                accepted=True
+            ),
+        ),
+        evaluate_insufficient_evidence_result(
+            make_record(
+                question_id="partial_withheld",
+                expected_behavior=(
+                    EXPECTED_BEHAVIOR_PARTIAL
+                ),
+                case_type=(
+                    "mixed_supported_unsupported"
+                ),
+            ),
+            make_result(
+                accepted=False,
+                reason=(
+                    EvidenceGuardReason
+                    .MISSING_CITATIONS
+                ),
+            ),
+        ),
+        evaluate_insufficient_evidence_result(
+            make_record(
+                question_id="withhold",
+                expected_behavior=(
+                    EXPECTED_BEHAVIOR_WITHHOLD
+                ),
+                case_type=(
+                    "out_of_corpus_document"
+                ),
+            ),
+            make_result(
+                accepted=False,
+                reason=(
+                    EvidenceGuardReason
+                    .NO_SELECTED_EVIDENCE
+                ),
+            ),
+        ),
+    ]
+
+    summary = (
+        aggregate_insufficient_evidence_metrics(
+            metrics
+        )
+    )
+
+    assert (
+        summary[
+            "question_count"
+        ]
+        == 4
+    )
+
+    assert (
+        summary[
+            "expected_answer_count"
+        ]
+        == 1
+    )
+
+    assert (
+        summary[
+            "expected_partial_count"
+        ]
+        == 2
+    )
+
+    assert (
+        summary[
+            "expected_withhold_count"
+        ]
+        == 1
+    )
+
+    assert (
+        summary[
+            "decision_accuracy"
+        ]
+        == pytest.approx(
+            0.75
+        )
+    )
+
+    assert (
+        summary[
+            "answer_acceptance_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+    assert (
+        summary[
+            "partial_case_acceptance_rate"
+        ]
+        == pytest.approx(
+            0.5
+        )
+    )
+
+    assert (
+        summary[
+            "withholding_success_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+    assert (
+        summary[
+            "guard_false_accept_rate"
+        ]
+        == pytest.approx(
+            0.0
+        )
+    )
+
+    # There are three cases that structurally should be accepted:
+    # one full-answer case and two partial cases. One partial case was
+    # incorrectly withheld.
+    assert (
+        summary[
+            "guard_false_withhold_rate"
+        ]
+        == pytest.approx(
+            1 / 3
         )
     )
 

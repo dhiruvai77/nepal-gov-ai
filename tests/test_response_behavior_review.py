@@ -1,4 +1,4 @@
-"""Tests for human response-level abstention review."""
+"""Tests for human response-level evidence-sufficiency review."""
 
 from __future__ import annotations
 
@@ -6,6 +6,11 @@ import json
 
 import pytest
 
+from src.evaluation.insufficient_evidence_evaluator import (
+    EXPECTED_BEHAVIOR_ANSWER,
+    EXPECTED_BEHAVIOR_PARTIAL,
+    EXPECTED_BEHAVIOR_WITHHOLD,
+)
 from src.evaluation.response_behavior_review import (
     REVIEW_CONFIG_ID,
     REVIEW_SCHEMA_VERSION,
@@ -15,6 +20,7 @@ from src.evaluation.response_behavior_review import (
     build_review_row,
     initialize_review_output,
     load_review_rows,
+    load_source_rows,
     source_record_sha256,
 )
 
@@ -22,11 +28,54 @@ from src.evaluation.response_behavior_review import (
 def make_source_row(
     *,
     question_id: str = "ie_en_en_001",
-    expected_behavior: str = "answer",
+    expected_behavior: str = (
+        EXPECTED_BEHAVIOR_ANSWER
+    ),
     accepted: bool = True,
-    answer_text: str = "Supported answer [E1].",
+    answer_text: str = (
+        "Supported answer [E1]."
+    ),
 ) -> dict:
-    """Build one persisted insufficient-evidence benchmark row."""
+    """Build one persisted evidence-sufficiency benchmark row."""
+
+    if (
+        expected_behavior
+        == EXPECTED_BEHAVIOR_ANSWER
+    ):
+        case_type = (
+            "answerable_control"
+        )
+
+        expected_document_ids = [
+            "example",
+        ]
+
+        reference_question_id = (
+            "en_en_001"
+        )
+
+    elif (
+        expected_behavior
+        == EXPECTED_BEHAVIOR_PARTIAL
+    ):
+        case_type = (
+            "partial_evidence"
+        )
+
+        expected_document_ids = [
+            "example",
+        ]
+
+        reference_question_id = None
+
+    else:
+        case_type = (
+            "out_of_corpus_document"
+        )
+
+        expected_document_ids = []
+
+        reference_question_id = None
 
     return {
         "schema_version": 1,
@@ -46,22 +95,13 @@ def make_source_row(
             expected_behavior
         ),
         "case_type": (
-            "answerable_control"
-            if expected_behavior
-            == "answer"
-            else "out_of_corpus_document"
+            case_type
         ),
         "expected_document_ids": (
-            ["example"]
-            if expected_behavior
-            == "answer"
-            else []
+            expected_document_ids
         ),
         "reference_question_id": (
-            "en_en_001"
-            if expected_behavior
-            == "answer"
-            else None
+            reference_question_id
         ),
         "notes": "Test.",
         "accepted": (
@@ -128,6 +168,41 @@ def write_source(
             )
 
 
+def completed_row(
+    *,
+    question_id: str,
+    expected_behavior: str,
+    accepted: bool,
+    response_behavior_label: str,
+    answer_text: str = (
+        "Supported answer [E1]."
+    ),
+) -> dict:
+    """Build and label one review row."""
+
+    return (
+        apply_response_behavior_label(
+            build_review_row(
+                make_source_row(
+                    question_id=(
+                        question_id
+                    ),
+                    expected_behavior=(
+                        expected_behavior
+                    ),
+                    accepted=accepted,
+                    answer_text=(
+                        answer_text
+                    ),
+                )
+            ),
+            response_behavior_label=(
+                response_behavior_label
+            ),
+        )
+    )
+
+
 def test_source_record_sha256_is_deterministic() -> None:
     row = (
         make_source_row()
@@ -188,6 +263,75 @@ def test_build_review_row_creates_pending_row() -> None:
     )
 
 
+def test_build_review_row_supports_partial_expected_behavior() -> None:
+    row = (
+        build_review_row(
+            make_source_row(
+                question_id=(
+                    "partial"
+                ),
+                expected_behavior=(
+                    EXPECTED_BEHAVIOR_PARTIAL
+                ),
+                accepted=True,
+            )
+        )
+    )
+
+    assert (
+        row[
+            "expected_behavior"
+        ]
+        == EXPECTED_BEHAVIOR_PARTIAL
+    )
+
+    assert (
+        row[
+            "case_type"
+        ]
+        == "partial_evidence"
+    )
+
+
+def test_load_source_rows_accepts_partial_behavior(
+    tmp_path,
+) -> None:
+    source_path = (
+        tmp_path
+        / "source.jsonl"
+    )
+
+    write_source(
+        source_path,
+        [
+            make_source_row(
+                expected_behavior=(
+                    EXPECTED_BEHAVIOR_PARTIAL
+                )
+            ),
+        ],
+    )
+
+    rows = (
+        load_source_rows(
+            source_path
+        )
+    )
+
+    assert len(
+        rows
+    ) == 1
+
+    assert (
+        rows[
+            0
+        ][
+            "expected_behavior"
+        ]
+        == EXPECTED_BEHAVIOR_PARTIAL
+    )
+
+
 def test_apply_response_behavior_label_completes_row() -> None:
     row = (
         build_review_row(
@@ -219,6 +363,41 @@ def test_apply_response_behavior_label_completes_row() -> None:
             "response_behavior_label"
         ]
         == "substantive_answer"
+    )
+
+
+def test_apply_partial_response_behavior_label() -> None:
+    row = (
+        build_review_row(
+            make_source_row(
+                expected_behavior=(
+                    EXPECTED_BEHAVIOR_PARTIAL
+                )
+            )
+        )
+    )
+
+    completed = (
+        apply_response_behavior_label(
+            row,
+            response_behavior_label=(
+                "partial_answer_with_limitation"
+            ),
+        )
+    )
+
+    assert (
+        completed[
+            "review_status"
+        ]
+        == REVIEW_STATUS_COMPLETED
+    )
+
+    assert (
+        completed[
+            "response_behavior_label"
+        ]
+        == "partial_answer_with_limitation"
     )
 
 
@@ -274,6 +453,53 @@ def test_initialize_review_output_creates_rows(
 
     assert (
         output_path.exists()
+    )
+
+
+def test_initialize_partial_review_output_creates_rows(
+    tmp_path,
+) -> None:
+    source_path = (
+        tmp_path
+        / "source.jsonl"
+    )
+
+    output_path = (
+        tmp_path
+        / "review.jsonl"
+    )
+
+    write_source(
+        source_path,
+        [
+            make_source_row(
+                expected_behavior=(
+                    EXPECTED_BEHAVIOR_PARTIAL
+                )
+            ),
+        ],
+    )
+
+    rows = (
+        initialize_review_output(
+            source_path,
+            output_path=(
+                output_path
+            ),
+        )
+    )
+
+    assert len(
+        rows
+    ) == 1
+
+    assert (
+        rows[
+            0
+        ][
+            "expected_behavior"
+        ]
+        == EXPECTED_BEHAVIOR_PARTIAL
     )
 
 
@@ -453,20 +679,14 @@ def test_load_review_rows_round_trip(
     ) == 1
 
 
-def test_aggregate_perfect_behavior() -> None:
+def test_aggregate_perfect_legacy_behavior() -> None:
     answer = (
-        apply_response_behavior_label(
-            build_review_row(
-                make_source_row(
-                    question_id=(
-                        "answer"
-                    ),
-                    expected_behavior=(
-                        "answer"
-                    ),
-                    accepted=True,
-                )
+        completed_row(
+            question_id="answer",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_ANSWER
             ),
+            accepted=True,
             response_behavior_label=(
                 "substantive_answer"
             ),
@@ -474,23 +694,17 @@ def test_aggregate_perfect_behavior() -> None:
     )
 
     abstain = (
-        apply_response_behavior_label(
-            build_review_row(
-                make_source_row(
-                    question_id=(
-                        "withhold"
-                    ),
-                    expected_behavior=(
-                        "withhold"
-                    ),
-                    accepted=False,
-                    answer_text=(
-                        "Insufficient evidence."
-                    ),
-                )
+        completed_row(
+            question_id="withhold",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_WITHHOLD
             ),
+            accepted=False,
             response_behavior_label=(
                 "abstained"
+            ),
+            answer_text=(
+                "Insufficient evidence."
             ),
         )
     )
@@ -524,6 +738,15 @@ def test_aggregate_perfect_behavior() -> None:
 
     assert (
         metrics[
+            "partial_response_success_rate"
+        ]
+        == pytest.approx(
+            0.0
+        )
+    )
+
+    assert (
+        metrics[
             "semantic_abstention_success_rate"
         ]
         == pytest.approx(
@@ -541,22 +764,124 @@ def test_aggregate_perfect_behavior() -> None:
     )
 
 
-def test_aggregate_detects_safe_abstention_despite_structural_accept() -> None:
-    row = (
-        apply_response_behavior_label(
-            build_review_row(
-                make_source_row(
-                    question_id="false_accept",
-                    expected_behavior="withhold",
-                    accepted=True,
-                    answer_text=(
-                        "The supplied evidence "
-                        "is insufficient."
-                    ),
-                )
+def test_aggregate_perfect_three_way_behavior() -> None:
+    answer = (
+        completed_row(
+            question_id="answer",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_ANSWER
             ),
+            accepted=True,
+            response_behavior_label=(
+                "substantive_answer"
+            ),
+        )
+    )
+
+    partial = (
+        completed_row(
+            question_id="partial",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_PARTIAL
+            ),
+            accepted=True,
+            response_behavior_label=(
+                "partial_answer_with_limitation"
+            ),
+            answer_text=(
+                "Supported part [E1]. "
+                "The evidence is insufficient "
+                "for the remaining part."
+            ),
+        )
+    )
+
+    abstain = (
+        completed_row(
+            question_id="withhold",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_WITHHOLD
+            ),
+            accepted=False,
             response_behavior_label=(
                 "abstained"
+            ),
+            answer_text=(
+                "Insufficient evidence."
+            ),
+        )
+    )
+
+    metrics = (
+        aggregate_response_behavior_review(
+            [
+                answer,
+                partial,
+                abstain,
+            ]
+        )
+    )
+
+    assert (
+        metrics[
+            "behavior_accuracy"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+    assert (
+        metrics[
+            "answer_delivery_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+    assert (
+        metrics[
+            "partial_response_success_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+    assert (
+        metrics[
+            "semantic_abstention_success_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+    assert (
+        metrics[
+            "structural_behavior_agreement_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+
+def test_aggregate_detects_safe_abstention_despite_structural_accept() -> None:
+    row = (
+        completed_row(
+            question_id="false_accept",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_WITHHOLD
+            ),
+            accepted=True,
+            response_behavior_label=(
+                "abstained"
+            ),
+            answer_text=(
+                "The supplied evidence "
+                "is insufficient."
             ),
         )
     )
@@ -604,14 +929,12 @@ def test_aggregate_detects_safe_abstention_despite_structural_accept() -> None:
 
 def test_aggregate_detects_unsafe_substantive_answer() -> None:
     row = (
-        apply_response_behavior_label(
-            build_review_row(
-                make_source_row(
-                    question_id="unsafe",
-                    expected_behavior="withhold",
-                    accepted=True,
-                )
+        completed_row(
+            question_id="unsafe",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_WITHHOLD
             ),
+            accepted=True,
             response_behavior_label=(
                 "substantive_answer"
             ),
@@ -645,18 +968,17 @@ def test_aggregate_detects_unsafe_substantive_answer() -> None:
 
 def test_aggregate_detects_unnecessary_abstention() -> None:
     row = (
-        apply_response_behavior_label(
-            build_review_row(
-                make_source_row(
-                    expected_behavior="answer",
-                    accepted=True,
-                    answer_text=(
-                        "Insufficient evidence."
-                    ),
-                )
+        completed_row(
+            question_id="answer",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_ANSWER
             ),
+            accepted=True,
             response_behavior_label=(
                 "abstained"
+            ),
+            answer_text=(
+                "Insufficient evidence."
             ),
         )
     )
@@ -682,6 +1004,256 @@ def test_aggregate_detects_unnecessary_abstention() -> None:
         ]
         == pytest.approx(
             1.0
+        )
+    )
+
+
+def test_aggregate_detects_correct_partial_response() -> None:
+    row = (
+        completed_row(
+            question_id="partial",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_PARTIAL
+            ),
+            accepted=True,
+            response_behavior_label=(
+                "partial_answer_with_limitation"
+            ),
+            answer_text=(
+                "Supported part [E1]. "
+                "The remaining part is not "
+                "supported by the evidence."
+            ),
+        )
+    )
+
+    metrics = (
+        aggregate_response_behavior_review(
+            [
+                row,
+            ]
+        )
+    )
+
+    assert (
+        metrics[
+            "partial_response_success_count"
+        ]
+        == 1
+    )
+
+    assert (
+        metrics[
+            "partial_response_success_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+    assert (
+        metrics[
+            "behavior_accuracy"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+
+def test_aggregate_detects_unqualified_substantive_on_partial() -> None:
+    row = (
+        completed_row(
+            question_id="partial_unsafe",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_PARTIAL
+            ),
+            accepted=True,
+            response_behavior_label=(
+                "substantive_answer"
+            ),
+        )
+    )
+
+    metrics = (
+        aggregate_response_behavior_review(
+            [
+                row,
+            ]
+        )
+    )
+
+    assert (
+        metrics[
+            "partial_response_success_rate"
+        ]
+        == pytest.approx(
+            0.0
+        )
+    )
+
+    assert (
+        metrics[
+            "unqualified_substantive_on_partial_count"
+        ]
+        == 1
+    )
+
+    assert (
+        metrics[
+            "unqualified_substantive_on_partial_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+    assert (
+        metrics[
+            "behavior_accuracy"
+        ]
+        == pytest.approx(
+            0.0
+        )
+    )
+
+
+def test_aggregate_detects_full_abstention_on_partial() -> None:
+    row = (
+        completed_row(
+            question_id="partial_abstain",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_PARTIAL
+            ),
+            accepted=False,
+            response_behavior_label=(
+                "abstained"
+            ),
+            answer_text=(
+                "Insufficient evidence."
+            ),
+        )
+    )
+
+    metrics = (
+        aggregate_response_behavior_review(
+            [
+                row,
+            ]
+        )
+    )
+
+    assert (
+        metrics[
+            "partial_response_success_rate"
+        ]
+        == pytest.approx(
+            0.0
+        )
+    )
+
+    assert (
+        metrics[
+            "full_abstention_on_partial_count"
+        ]
+        == 1
+    )
+
+    assert (
+        metrics[
+            "full_abstention_on_partial_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+    assert (
+        metrics[
+            "behavior_accuracy"
+        ]
+        == pytest.approx(
+            0.0
+        )
+    )
+
+
+def test_partial_answer_counts_as_structural_accept_behavior() -> None:
+    row = (
+        completed_row(
+            question_id="partial",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_PARTIAL
+            ),
+            accepted=True,
+            response_behavior_label=(
+                "partial_answer_with_limitation"
+            ),
+        )
+    )
+
+    metrics = (
+        aggregate_response_behavior_review(
+            [
+                row,
+            ]
+        )
+    )
+
+    assert (
+        metrics[
+            "structural_behavior_agreement_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+
+def test_partial_answer_on_withhold_remains_incorrect() -> None:
+    row = (
+        completed_row(
+            question_id="withhold_partial",
+            expected_behavior=(
+                EXPECTED_BEHAVIOR_WITHHOLD
+            ),
+            accepted=True,
+            response_behavior_label=(
+                "partial_answer_with_limitation"
+            ),
+        )
+    )
+
+    metrics = (
+        aggregate_response_behavior_review(
+            [
+                row,
+            ]
+        )
+    )
+
+    assert (
+        metrics[
+            "partial_answer_on_withhold_count"
+        ]
+        == 1
+    )
+
+    assert (
+        metrics[
+            "partial_answer_on_withhold_rate"
+        ]
+        == pytest.approx(
+            1.0
+        )
+    )
+
+    assert (
+        metrics[
+            "behavior_accuracy"
+        ]
+        == pytest.approx(
+            0.0
         )
     )
 
