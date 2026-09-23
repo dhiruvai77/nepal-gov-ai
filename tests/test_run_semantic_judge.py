@@ -17,6 +17,7 @@ from src.evaluation.run_semantic_judge import (
     prediction_from_output_record,
     prompt_sha256,
     run_semantic_judge,
+    validate_judge_run_config_id,
     validate_limit,
 )
 from src.evaluation.semantic_judge import (
@@ -25,16 +26,34 @@ from src.evaluation.semantic_judge import (
 )
 
 
+PRODUCTION_REFERENCE_CONFIG_ID = (
+    "production-rag-v2-human-review-v1"
+)
+
+HARD_CASE_CONFIG_ID = (
+    "semantic-judge-hard-cases-v1"
+)
+
+HARD_CASE_JUDGE_RUN_CONFIG_ID = (
+    "semantic-judge-hard-cases-v1-judge"
+)
+
+
 def make_human_row(
     claim_id: str = "q1_c001",
     *,
     query_language: str = "en",
     target_language: str = "en",
+    config_id: str = (
+        PRODUCTION_REFERENCE_CONFIG_ID
+    ),
 ) -> dict:
     """Build one completed human reference row."""
 
     return {
-        "claim_id": claim_id,
+        "claim_id": (
+            claim_id
+        ),
         "question_id": (
             claim_id.split(
                 "_c"
@@ -48,6 +67,9 @@ def make_human_row(
         ),
         "target_language": (
             target_language
+        ),
+        "answer_language": (
+            query_language
         ),
         "claim_text": (
             "The law states the provision."
@@ -69,6 +91,7 @@ def make_human_row(
                 "individual_support_label": (
                     "supported"
                 ),
+                "individual_support_notes": None,
             }
         ],
         "semantic_support_label": (
@@ -77,9 +100,15 @@ def make_human_row(
         "citation_requirement_label": (
             "required"
         ),
+        "semantic_notes": None,
         "review_sample_config_id": (
-            "production-rag-v2-human-review-v1"
+            config_id
         ),
+        "review_language_pair": (
+            f"{query_language}"
+            f"->{target_language}"
+        ),
+        "review_stratum": "test",
         "review_status": (
             "completed"
         ),
@@ -89,29 +118,31 @@ def make_human_row(
 def valid_response() -> str:
     """Return one valid automated prediction."""
 
-    return json.dumps(
-        {
-            "semantic_support_label": (
-                "supported"
-            ),
-            "citation_requirement_label": (
-                "required"
-            ),
-            "semantic_notes": (
-                "Direct support."
-            ),
-            "individual_evidence": [
-                {
-                    "evidence_id": "E1",
-                    "support_label": (
-                        "supported"
-                    ),
-                    "notes": (
-                        "Directly stated."
-                    ),
-                }
-            ],
-        }
+    return (
+        json.dumps(
+            {
+                "semantic_support_label": (
+                    "supported"
+                ),
+                "citation_requirement_label": (
+                    "required"
+                ),
+                "semantic_notes": (
+                    "Direct support."
+                ),
+                "individual_evidence": [
+                    {
+                        "evidence_id": "E1",
+                        "support_label": (
+                            "supported"
+                        ),
+                        "notes": (
+                            "Directly stated."
+                        ),
+                    }
+                ],
+            }
+        )
     )
 
 
@@ -163,6 +194,8 @@ class FakeJudgeService:
         self,
         prompt: str,
     ) -> str:
+        """Return one deterministic judge response."""
+
         self.calls.append(
             prompt
         )
@@ -186,6 +219,8 @@ class FakeJudgeService:
     def close(
         self,
     ) -> None:
+        """Record service closure."""
+
         self.closed = True
 
 
@@ -194,6 +229,9 @@ def make_output_row(
     *,
     provider: str = "fake",
     model: str = "fake-model",
+    judge_run_config_id: str = (
+        JUDGE_RUN_CONFIG_ID
+    ),
 ) -> dict:
     """Build one valid persisted judge row."""
 
@@ -218,10 +256,21 @@ def make_output_row(
         build_output_record(
             human_row,
             prediction,
-            response_text=response,
-            prompt=prompt,
-            provider=provider,
-            model=model,
+            response_text=(
+                response
+            ),
+            prompt=(
+                prompt
+            ),
+            provider=(
+                provider
+            ),
+            model=(
+                model
+            ),
+            judge_run_config_id=(
+                judge_run_config_id
+            ),
         )
     )
 
@@ -288,6 +337,39 @@ def test_build_output_record_contains_no_human_labels() -> None:
             "semantic_support_label"
         ]
         == "supported"
+    )
+
+
+def test_build_output_record_supports_custom_judge_run_config() -> None:
+    row = (
+        make_human_row(
+            config_id=(
+                HARD_CASE_CONFIG_ID
+            )
+        )
+    )
+
+    output = (
+        make_output_row(
+            row,
+            judge_run_config_id=(
+                HARD_CASE_JUDGE_RUN_CONFIG_ID
+            ),
+        )
+    )
+
+    assert (
+        output[
+            "judge_run_config_id"
+        ]
+        == HARD_CASE_JUDGE_RUN_CONFIG_ID
+    )
+
+    assert (
+        output[
+            "review_sample_config_id"
+        ]
+        == HARD_CASE_CONFIG_ID
     )
 
 
@@ -380,6 +462,99 @@ def test_load_existing_output_reuses_valid_prediction(
     ) == [
         "q1_c001",
     ]
+
+
+def test_load_existing_output_supports_custom_judge_run_config(
+    tmp_path,
+) -> None:
+    human_row = (
+        make_human_row(
+            config_id=(
+                HARD_CASE_CONFIG_ID
+            )
+        )
+    )
+
+    path = (
+        tmp_path
+        / "judge.jsonl"
+    )
+
+    append_output_record(
+        path,
+        make_output_row(
+            human_row,
+            judge_run_config_id=(
+                HARD_CASE_JUDGE_RUN_CONFIG_ID
+            ),
+        ),
+    )
+
+    loaded = (
+        load_existing_output(
+            path,
+            [
+                human_row,
+            ],
+            provider="fake",
+            model="fake-model",
+            judge_run_config_id=(
+                HARD_CASE_JUDGE_RUN_CONFIG_ID
+            ),
+        )
+    )
+
+    assert list(
+        loaded
+    ) == [
+        "q1_c001",
+    ]
+
+
+def test_load_existing_output_rejects_wrong_judge_run_config(
+    tmp_path,
+) -> None:
+    human_row = (
+        make_human_row(
+            config_id=(
+                HARD_CASE_CONFIG_ID
+            )
+        )
+    )
+
+    path = (
+        tmp_path
+        / "judge.jsonl"
+    )
+
+    append_output_record(
+        path,
+        make_output_row(
+            human_row,
+            judge_run_config_id=(
+                HARD_CASE_JUDGE_RUN_CONFIG_ID
+            ),
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "different "
+            "judge_run_config_id"
+        ),
+    ):
+        load_existing_output(
+            path,
+            [
+                human_row,
+            ],
+            provider="fake",
+            model="fake-model",
+            judge_run_config_id=(
+                "different-config"
+            ),
+        )
 
 
 def test_load_existing_output_rejects_wrong_model(
@@ -480,9 +655,12 @@ def test_build_agreements_compares_prediction_to_human() -> None:
         )
     )
 
-    assert len(
-        agreements
-    ) == 1
+    assert (
+        len(
+            agreements
+        )
+        == 1
+    )
 
     assert (
         agreements[
@@ -530,9 +708,12 @@ def test_run_semantic_judge_executes_and_persists(
         )
     )
 
-    assert len(
-        agreements
-    ) == 1
+    assert (
+        len(
+            agreements
+        )
+        == 1
+    )
 
     assert (
         metrics[
@@ -541,9 +722,12 @@ def test_run_semantic_judge_executes_and_persists(
         == 1.0
     )
 
-    assert len(
-        service.calls
-    ) == 1
+    assert (
+        len(
+            service.calls
+        )
+        == 1
+    )
 
     assert (
         service.closed
@@ -552,6 +736,90 @@ def test_run_semantic_judge_executes_and_persists(
 
     assert (
         output_path.exists()
+    )
+
+
+def test_run_semantic_judge_supports_hard_case_reference_config(
+    tmp_path,
+) -> None:
+    input_path = (
+        tmp_path
+        / "hard_reference.jsonl"
+    )
+
+    output_path = (
+        tmp_path
+        / "hard_judge.jsonl"
+    )
+
+    write_human_rows(
+        input_path,
+        [
+            make_human_row(
+                config_id=(
+                    HARD_CASE_CONFIG_ID
+                )
+            ),
+        ],
+    )
+
+    service = (
+        FakeJudgeService()
+    )
+
+    agreements, metrics = (
+        run_semantic_judge(
+            input_path,
+            output_path=(
+                output_path
+            ),
+            judge_run_config_id=(
+                HARD_CASE_JUDGE_RUN_CONFIG_ID
+            ),
+            provider="fake",
+            model="fake-model",
+            service_factory=(
+                lambda _: service
+            ),
+        )
+    )
+
+    assert (
+        len(
+            agreements
+        )
+        == 1
+    )
+
+    assert (
+        metrics[
+            "semantic_exact_accuracy"
+        ]
+        == 1.0
+    )
+
+    persisted = (
+        json.loads(
+            output_path
+            .read_text(
+                encoding="utf-8"
+            )
+            .strip()
+        )
+    )
+
+    assert (
+        persisted[
+            "judge_run_config_id"
+        ]
+        == HARD_CASE_JUDGE_RUN_CONFIG_ID
+    )
+
+    assert (
+        persisted[
+            "review_sample_config_id"
+        ]
+        == HARD_CASE_CONFIG_ID
     )
 
 
@@ -613,13 +881,19 @@ def test_run_semantic_judge_resumes_without_repeating(
         )
     )
 
-    assert len(
-        service.calls
-    ) == 1
+    assert (
+        len(
+            service.calls
+        )
+        == 1
+    )
 
-    assert len(
-        agreements
-    ) == 2
+    assert (
+        len(
+            agreements
+        )
+        == 2
+    )
 
 
 def test_run_semantic_judge_limit_applies_to_new_calls(
@@ -671,13 +945,19 @@ def test_run_semantic_judge_limit_applies_to_new_calls(
         )
     )
 
-    assert len(
-        service.calls
-    ) == 2
+    assert (
+        len(
+            service.calls
+        )
+        == 2
+    )
 
-    assert len(
-        agreements
-    ) == 2
+    assert (
+        len(
+            agreements
+        )
+        == 2
+    )
 
 
 def test_completed_prediction_survives_later_failure(
@@ -793,15 +1073,20 @@ def test_all_completed_rows_avoid_service_creation(
             ),
             provider="fake",
             model="fake-model",
-            service_factory=factory,
+            service_factory=(
+                factory
+            ),
         )
     )
 
     factory.assert_not_called()
 
-    assert len(
-        agreements
-    ) == 1
+    assert (
+        len(
+            agreements
+        )
+        == 1
+    )
 
 
 def test_validate_limit_rejects_non_positive_values() -> None:
@@ -836,3 +1121,22 @@ def test_validate_limit_accepts_positive_and_none() -> None:
         )
         == 3
     )
+
+
+def test_validate_judge_run_config_id_accepts_and_strips_text() -> None:
+    assert (
+        validate_judge_run_config_id(
+            " hard-case-run "
+        )
+        == "hard-case-run"
+    )
+
+
+def test_validate_judge_run_config_id_rejects_empty_text() -> None:
+    with pytest.raises(
+        ValueError,
+        match="judge_run_config_id",
+    ):
+        validate_judge_run_config_id(
+            "   "
+        )

@@ -1,14 +1,19 @@
 """Automated semantic citation judging for NepalGov AI.
 
 This module defines the provider-independent semantic-judge contract used to
-compare automated semantic citation labels against the human-reviewed reference
-set.
+compare automated semantic citation labels against completed human reference
+sets.
 
 The automated judge is evaluation infrastructure only.
 
 Human labels remain the reference standard. Automated predictions must be
-measured against the human-reviewed subset before they are used for larger-scale
+measured against human-reviewed references before they are used for larger-scale
 semantic evaluation.
+
+Reference sets may include:
+
+1. the original deterministic 48-claim production review subset,
+2. separately curated semantic challenge sets.
 
 The judge evaluates:
 
@@ -34,10 +39,9 @@ from src.evaluation.build_semantic_evaluation_dataset import (
     SUPPORTED_CITATION_REQUIREMENT_LABELS,
     SUPPORTED_SEMANTIC_LABELS,
 )
-from src.evaluation.semantic_review import (
-    INDIVIDUAL_SUPPORT_LABELS,
-    REVIEW_STATUS_COMPLETED,
-    validate_review_row,
+from src.evaluation.semantic_reference import (
+    SUPPORTED_INDIVIDUAL_SUPPORT_LABELS,
+    validate_semantic_reference_row,
 )
 
 
@@ -164,9 +168,9 @@ def build_semantic_judge_prompt(
         Any,
     ],
 ) -> str:
-    """Build a deterministic semantic-judge prompt for one review row."""
+    """Build a deterministic semantic-judge prompt for one reference row."""
 
-    validate_review_row(
+    validate_semantic_reference_row(
         row
     )
 
@@ -222,9 +226,7 @@ def build_semantic_judge_prompt(
     ] = []
 
     if cited_evidence:
-        for evidence in (
-            cited_evidence
-        ):
+        for evidence in cited_evidence:
             evidence_id = (
                 _require_nonempty_string(
                     evidence.get(
@@ -303,9 +305,7 @@ def build_semantic_judge_prompt(
                 "evidence_id"
             ]
         )
-        for evidence in (
-            cited_evidence
-        )
+        for evidence in cited_evidence
     ]
 
     evidence_ids_json = (
@@ -418,7 +418,7 @@ def parse_semantic_judge_response(
 ) -> SemanticJudgePrediction:
     """Parse and validate one automated semantic-judge JSON response."""
 
-    validate_review_row(
+    validate_semantic_reference_row(
         row
     )
 
@@ -450,8 +450,10 @@ def parse_semantic_judge_response(
         )
 
     try:
-        payload = json.loads(
-            cleaned_response
+        payload = (
+            json.loads(
+                cleaned_response
+            )
         )
 
     except json.JSONDecodeError as exc:
@@ -476,9 +478,12 @@ def parse_semantic_judge_response(
         "individual_evidence",
     }
 
-    if set(
-        payload
-    ) != expected_keys:
+    if (
+        set(
+            payload
+        )
+        != expected_keys
+    ):
         raise ValueError(
             "Semantic judge response has "
             "unexpected JSON fields."
@@ -492,7 +497,9 @@ def parse_semantic_judge_response(
 
     if (
         semantic_label
-        not in SUPPORTED_JUDGE_SEMANTIC_LABELS
+        not in (
+            SUPPORTED_JUDGE_SEMANTIC_LABELS
+        )
     ):
         raise ValueError(
             "Semantic judge returned "
@@ -507,7 +514,9 @@ def parse_semantic_judge_response(
 
     if (
         citation_requirement
-        not in SUPPORTED_JUDGE_CITATION_REQUIREMENT_LABELS
+        not in (
+            SUPPORTED_JUDGE_CITATION_REQUIREMENT_LABELS
+        )
     ):
         raise ValueError(
             "Semantic judge returned an invalid "
@@ -549,15 +558,16 @@ def parse_semantic_judge_response(
                 "evidence_id"
             ]
         )
-        for evidence in (
-            cited_evidence
-        )
+        for evidence in cited_evidence
     ]
 
-    if len(
-        raw_individual
-    ) != len(
-        expected_ids
+    if (
+        len(
+            raw_individual
+        )
+        != len(
+            expected_ids
+        )
     ):
         raise ValueError(
             f"Claim {claim_id!r} requires "
@@ -569,9 +579,12 @@ def parse_semantic_judge_response(
         IndividualEvidencePrediction
     ] = []
 
-    for index, (
-        raw_prediction,
-        expected_evidence_id,
+    for (
+        index,
+        (
+            raw_prediction,
+            expected_evidence_id,
+        ),
     ) in enumerate(
         zip(
             raw_individual,
@@ -595,9 +608,12 @@ def parse_semantic_judge_response(
             "notes",
         }
 
-        if set(
-            raw_prediction
-        ) != expected_individual_keys:
+        if (
+            set(
+                raw_prediction
+            )
+            != expected_individual_keys
+        ):
             raise ValueError(
                 "Individual evidence prediction "
                 f"{index} has unexpected fields."
@@ -620,7 +636,8 @@ def parse_semantic_judge_response(
         ):
             raise ValueError(
                 f"Claim {claim_id!r} expected "
-                f"evidence {expected_evidence_id!r} "
+                f"evidence "
+                f"{expected_evidence_id!r} "
                 f"at position {index}, "
                 f"received {evidence_id!r}."
             )
@@ -633,7 +650,9 @@ def parse_semantic_judge_response(
 
         if (
             support_label
-            not in SUPPORTED_JUDGE_INDIVIDUAL_LABELS
+            not in (
+                SUPPORTED_JUDGE_INDIVIDUAL_LABELS
+            )
         ):
             raise ValueError(
                 f"Claim {claim_id!r} evidence "
@@ -675,23 +694,27 @@ def parse_semantic_judge_response(
             "partially_supported."
         )
 
-    # Keep judge and human-review vocabularies explicitly aligned.
+    # Keep automated and human-reference vocabularies explicitly aligned.
     if (
         semantic_label
         not in SUPPORTED_SEMANTIC_LABELS
     ):
         raise ValueError(
             "Semantic judge label is not "
-            "supported by the human-review schema."
+            "supported by the semantic "
+            "reference schema."
         )
 
     if (
         citation_requirement
-        not in SUPPORTED_CITATION_REQUIREMENT_LABELS
+        not in (
+            SUPPORTED_CITATION_REQUIREMENT_LABELS
+        )
     ):
         raise ValueError(
             "Citation requirement label is not "
-            "supported by the human-review schema."
+            "supported by the semantic "
+            "reference schema."
         )
 
     for prediction in (
@@ -699,29 +722,34 @@ def parse_semantic_judge_response(
     ):
         if (
             prediction.support_label
-            not in INDIVIDUAL_SUPPORT_LABELS
+            not in (
+                SUPPORTED_INDIVIDUAL_SUPPORT_LABELS
+            )
         ):
             raise ValueError(
                 "Individual judge label is not "
-                "supported by the human-review schema."
+                "supported by the semantic "
+                "reference schema."
             )
 
-    return SemanticJudgePrediction(
-        claim_id=(
-            claim_id
-        ),
-        semantic_support_label=(
-            semantic_label
-        ),
-        citation_requirement_label=(
-            citation_requirement
-        ),
-        semantic_notes=(
-            notes
-        ),
-        individual_evidence=tuple(
-            individual_predictions
-        ),
+    return (
+        SemanticJudgePrediction(
+            claim_id=(
+                claim_id
+            ),
+            semantic_support_label=(
+                semantic_label
+            ),
+            citation_requirement_label=(
+                citation_requirement
+            ),
+            semantic_notes=(
+                notes
+            ),
+            individual_evidence=tuple(
+                individual_predictions
+            ),
+        )
     )
 
 
@@ -777,7 +805,7 @@ def compare_prediction_to_human(
 ) -> SemanticJudgeAgreement:
     """Compare one automated prediction with completed human labels."""
 
-    validate_review_row(
+    validate_semantic_reference_row(
         human_row
     )
 
@@ -789,17 +817,6 @@ def compare_prediction_to_human(
             field_name="claim_id",
         )
     )
-
-    if (
-        human_row.get(
-            "review_status"
-        )
-        != REVIEW_STATUS_COMPLETED
-    ):
-        raise ValueError(
-            f"Human claim {claim_id!r} "
-            "has not been completed."
-        )
 
     if (
         prediction.claim_id
@@ -838,10 +855,13 @@ def compare_prediction_to_human(
         ]
     )
 
-    if len(
-        human_evidence
-    ) != len(
-        prediction.individual_evidence
+    if (
+        len(
+            human_evidence
+        )
+        != len(
+            prediction.individual_evidence
+        )
     ):
         raise ValueError(
             f"Claim {claim_id!r} has mismatched "
@@ -850,7 +870,10 @@ def compare_prediction_to_human(
 
     individual_exact_count = 0
 
-    for human_item, judge_item in zip(
+    for (
+        human_item,
+        judge_item,
+    ) in zip(
         human_evidence,
         prediction.individual_evidence,
         strict=True,
@@ -905,42 +928,52 @@ def compare_prediction_to_human(
         )
     )
 
-    return SemanticJudgeAgreement(
-        claim_id=(
-            claim_id
-        ),
-        query_language=(
-            query_language
-        ),
-        target_language=(
-            target_language
-        ),
-        semantic_exact=(
-            human_semantic
-            == prediction.semantic_support_label
-        ),
-        citation_requirement_exact=(
-            human_requirement
-            == prediction.citation_requirement_label
-        ),
-        individual_count=len(
-            human_evidence
-        ),
-        individual_exact_count=(
-            individual_exact_count
-        ),
-        semantic_human_label=(
-            human_semantic
-        ),
-        semantic_judge_label=(
-            prediction.semantic_support_label
-        ),
-        citation_requirement_human_label=(
-            human_requirement
-        ),
-        citation_requirement_judge_label=(
-            prediction.citation_requirement_label
-        ),
+    return (
+        SemanticJudgeAgreement(
+            claim_id=(
+                claim_id
+            ),
+            query_language=(
+                query_language
+            ),
+            target_language=(
+                target_language
+            ),
+            semantic_exact=(
+                human_semantic
+                == (
+                    prediction
+                    .semantic_support_label
+                )
+            ),
+            citation_requirement_exact=(
+                human_requirement
+                == (
+                    prediction
+                    .citation_requirement_label
+                )
+            ),
+            individual_count=len(
+                human_evidence
+            ),
+            individual_exact_count=(
+                individual_exact_count
+            ),
+            semantic_human_label=(
+                human_semantic
+            ),
+            semantic_judge_label=(
+                prediction
+                .semantic_support_label
+            ),
+            citation_requirement_human_label=(
+                human_requirement
+            ),
+            citation_requirement_judge_label=(
+                prediction
+                .citation_requirement_label
+            ),
+        )
     )
 
 
@@ -1117,9 +1150,7 @@ def aggregate_judge_agreement_by_language_pair(
         list
     )
 
-    for agreement in (
-        agreements
-    ):
+    for agreement in agreements:
         pair = (
             f"{agreement.query_language}"
             f"->{agreement.target_language}"

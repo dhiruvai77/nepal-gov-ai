@@ -1,7 +1,11 @@
 """Resumable automated semantic-judge runner for NepalGov AI.
 
-This module runs an evaluation-only Gemini semantic judge over the manually
-reviewed 48-claim reference subset.
+This module runs an evaluation-only Gemini semantic judge over completed
+semantic reference sets.
+
+The default input remains the original manually reviewed 48-claim production
+reference subset. Separately curated challenge/reference sets can also be run
+with their own judge_run_config_id and output artifact.
 
 Important:
 
@@ -10,6 +14,7 @@ Important:
 - predictions are persisted incrementally,
 - completed predictions are reused after validation,
 - prompt hashes prevent silently reusing predictions after prompt changes,
+- separate reference sets can use separate judge run IDs,
 - the automated judge is not part of the production RAG evidence guard.
 """
 
@@ -41,10 +46,9 @@ from src.evaluation.semantic_judge import (
     parse_semantic_judge_response,
     prediction_to_dict,
 )
-from src.evaluation.semantic_review import (
-    REVIEW_STATUS_COMPLETED,
-    load_review_rows,
-    validate_review_row,
+from src.evaluation.semantic_reference import (
+    load_semantic_reference_rows,
+    validate_semantic_reference_row,
 )
 
 
@@ -372,6 +376,28 @@ def validate_limit(
     return limit
 
 
+def validate_judge_run_config_id(
+    judge_run_config_id: str,
+) -> str:
+    """Validate and normalize one semantic-judge run configuration ID."""
+
+    if (
+        not isinstance(
+            judge_run_config_id,
+            str,
+        )
+        or not judge_run_config_id.strip()
+    ):
+        raise ValueError(
+            "judge_run_config_id must contain "
+            "non-whitespace text."
+        )
+
+    return (
+        judge_run_config_id.strip()
+    )
+
+
 def prompt_sha256(
     prompt: str,
 ) -> str:
@@ -422,14 +448,23 @@ def build_output_record(
     prompt: str,
     provider: str,
     model: str,
+    judge_run_config_id: str = (
+        JUDGE_RUN_CONFIG_ID
+    ),
 ) -> dict[
     str,
     Any,
 ]:
     """Build one persisted automated-judge prediction record."""
 
-    validate_review_row(
+    validate_semantic_reference_row(
         human_row
+    )
+
+    clean_run_config_id = (
+        validate_judge_run_config_id(
+            judge_run_config_id
+        )
     )
 
     claim_id = (
@@ -440,17 +475,6 @@ def build_output_record(
             field_name="claim_id",
         )
     )
-
-    if (
-        human_row.get(
-            "review_status"
-        )
-        != REVIEW_STATUS_COMPLETED
-    ):
-        raise ValueError(
-            f"Human claim {claim_id!r} "
-            "has not been completed."
-        )
 
     if (
         prediction.claim_id
@@ -468,7 +492,7 @@ def build_output_record(
             RESULT_SCHEMA_VERSION
         ),
         "judge_run_config_id": (
-            JUDGE_RUN_CONFIG_ID
+            clean_run_config_id
         ),
         "judge_schema_version": (
             JUDGE_SCHEMA_VERSION
@@ -623,8 +647,21 @@ def validate_persisted_row(
     line_number: int,
     provider: str,
     model: str,
+    judge_run_config_id: str = (
+        JUDGE_RUN_CONFIG_ID
+    ),
 ) -> None:
     """Reject stale or incompatible persisted judge predictions."""
+
+    validate_semantic_reference_row(
+        human_row
+    )
+
+    clean_run_config_id = (
+        validate_judge_run_config_id(
+            judge_run_config_id
+        )
+    )
 
     claim_id = (
         _require_nonempty_string(
@@ -651,7 +688,7 @@ def validate_persisted_row(
         row.get(
             "judge_run_config_id"
         )
-        != JUDGE_RUN_CONFIG_ID
+        != clean_run_config_id
     ):
         raise ValueError(
             "Persisted semantic judge row "
@@ -763,6 +800,9 @@ def load_existing_output(
     *,
     provider: str,
     model: str,
+    judge_run_config_id: str = (
+        JUDGE_RUN_CONFIG_ID
+    ),
 ) -> dict[
     str,
     dict[
@@ -771,6 +811,12 @@ def load_existing_output(
     ],
 ]:
     """Load reusable completed automated-judge predictions."""
+
+    clean_run_config_id = (
+        validate_judge_run_config_id(
+            judge_run_config_id
+        )
+    )
 
     path = Path(
         output_path
@@ -785,9 +831,7 @@ def load_existing_output(
                 "claim_id"
             ]
         ): row
-        for row in (
-            human_rows
-        )
+        for row in human_rows
     }
 
     completed: dict[
@@ -817,8 +861,10 @@ def load_existing_output(
                 continue
 
             try:
-                row = json.loads(
-                    line
+                row = (
+                    json.loads(
+                        line
+                    )
                 )
 
             except json.JSONDecodeError as exc:
@@ -865,7 +911,7 @@ def load_existing_output(
                 raise ValueError(
                     "Persisted semantic "
                     "judge output contains "
-                    f"unknown claim_id "
+                    "unknown claim_id "
                     f"{claim_id!r}."
                 )
 
@@ -888,8 +934,15 @@ def load_existing_output(
                 line_number=(
                     line_number
                 ),
-                provider=provider,
-                model=model,
+                provider=(
+                    provider
+                ),
+                model=(
+                    model
+                ),
+                judge_run_config_id=(
+                    clean_run_config_id
+                ),
             )
 
             completed[
@@ -916,15 +969,13 @@ def build_agreements(
 ) -> list[
     SemanticJudgeAgreement
 ]:
-    """Compare all persisted predictions against human reference labels."""
+    """Compare persisted predictions against human reference labels."""
 
     agreements: list[
         SemanticJudgeAgreement
     ] = []
 
-    for human_row in (
-        human_rows
-    ):
+    for human_row in human_rows:
         claim_id = str(
             human_row[
                 "claim_id"
@@ -1101,6 +1152,9 @@ def run_semantic_judge(
     output_path: str | Path = (
         DEFAULT_OUTPUT_PATH
     ),
+    judge_run_config_id: str = (
+        JUDGE_RUN_CONFIG_ID
+    ),
     limit: int | None = None,
     reset: bool = False,
     provider: str = (
@@ -1129,32 +1183,17 @@ def run_semantic_judge(
         )
     )
 
-    human_rows = (
-        load_review_rows(
-            input_path
+    clean_run_config_id = (
+        validate_judge_run_config_id(
+            judge_run_config_id
         )
     )
 
-    if not human_rows:
-        raise ValueError(
-            "Human reference set "
-            "contains no rows."
+    human_rows = (
+        load_semantic_reference_rows(
+            input_path
         )
-
-    for human_row in (
-        human_rows
-    ):
-        if (
-            human_row.get(
-                "review_status"
-            )
-            != REVIEW_STATUS_COMPLETED
-        ):
-            raise ValueError(
-                "Automated judge input "
-                "must contain only completed "
-                "human review rows."
-            )
+    )
 
     clean_provider = (
         _require_nonempty_string(
@@ -1190,20 +1229,23 @@ def run_semantic_judge(
             model=(
                 clean_model
             ),
+            judge_run_config_id=(
+                clean_run_config_id
+            ),
         )
     )
 
     missing_rows = [
         row
-        for row in (
-            human_rows
+        for row in human_rows
+        if (
+            str(
+                row[
+                    "claim_id"
+                ]
+            )
+            not in completed
         )
-        if str(
-            row[
-                "claim_id"
-            ]
-        )
-        not in completed
     ]
 
     if (
@@ -1295,12 +1337,17 @@ def run_semantic_judge(
                         response_text=(
                             response_text
                         ),
-                        prompt=prompt,
+                        prompt=(
+                            prompt
+                        ),
                         provider=(
                             clean_provider
                         ),
                         model=(
                             clean_model
+                        ),
+                        judge_run_config_id=(
+                            clean_run_config_id
                         ),
                     )
                 )
@@ -1322,6 +1369,9 @@ def run_semantic_judge(
             ),
             model=(
                 clean_model
+            ),
+            judge_run_config_id=(
+                clean_run_config_id
             ),
         )
     )
@@ -1360,8 +1410,8 @@ def build_argument_parser(
             description=(
                 "Run the automated "
                 "semantic citation judge "
-                "against the human-reviewed "
-                "reference subset."
+                "against a completed "
+                "semantic reference set."
             )
         )
     )
@@ -1379,6 +1429,13 @@ def build_argument_parser(
         type=Path,
         default=(
             DEFAULT_OUTPUT_PATH
+        ),
+    )
+
+    parser.add_argument(
+        "--judge-run-config-id",
+        default=(
+            JUDGE_RUN_CONFIG_ID
         ),
     )
 
@@ -1418,14 +1475,23 @@ def main(
             output_path=(
                 args.output
             ),
-            limit=args.limit,
-            reset=args.reset,
-            model=args.model,
+            judge_run_config_id=(
+                args.judge_run_config_id
+            ),
+            limit=(
+                args.limit
+            ),
+            reset=(
+                args.reset
+            ),
+            model=(
+                args.model
+            ),
         )
     )
 
     human_rows = (
-        load_review_rows(
+        load_semantic_reference_rows(
             args.input
         )
     )
