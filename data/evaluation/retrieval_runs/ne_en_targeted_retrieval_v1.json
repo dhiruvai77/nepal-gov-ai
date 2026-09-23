@@ -1,0 +1,298 @@
+{
+  "schema_version": 1,
+  "run_config_id": "ne-en-targeted-retrieval-v1",
+  "benchmark_path": "data/evaluation/retrieval_questions.jsonl",
+  "evaluation_slice": {
+    "query_language": "ne",
+    "target_language": "en",
+    "question_count": 6,
+    "question_ids": [
+      "ne_en_001",
+      "ne_en_002",
+      "ne_en_003",
+      "ne_en_004",
+      "ne_en_005",
+      "ne_en_006"
+    ]
+  },
+  "production_changed": false,
+  "experimental_translation": {
+    "type": "manually_controlled_english_counterparts",
+    "production_ready": false,
+    "notes": "The English counterparts are manually controlled evaluation queries. This benchmark does not implement or validate an automatic production translation component."
+  },
+  "candidate_generation": {
+    "production": {
+      "query": "original_nepali",
+      "target_language": "en",
+      "dense_vector": "dense_contextual",
+      "bm25": false,
+      "final_candidate_depth": 20
+    },
+    "translated_hybrid": {
+      "query": "controlled_english",
+      "target_language": "en",
+      "dense_vector": "dense_contextual",
+      "bm25": true,
+      "fusion": "reciprocal_rank_fusion",
+      "rrf_k": 60,
+      "dense_component_depth": 100,
+      "bm25_component_depth": 100,
+      "final_candidate_depth": 20
+    }
+  },
+  "candidate_depth_diagnostic_ne_en_005": {
+    "controlled_english_contextual_dense_rank": 85,
+    "controlled_english_bm25_rank": 46,
+    "final_top_20_rrf_rank_by_component_depth": {
+      "60": null,
+      "100": 13,
+      "160": 14,
+      "200": 15,
+      "300": 19,
+      "400": null
+    },
+    "selected_component_depth": 100,
+    "notes": "Candidate depth was not monotonically related to final RRF rank. Depth 100 was the shallowest tested component pool that recovered the primary evidence inside the final top 20."
+  },
+  "document_constraint_diagnostic": {
+    "ne_en_005_production_rank_at_100": null,
+    "ne_en_005_gold_document_rank_at_100": null,
+    "interpretation": "Constraining retrieval to the manually verified Economic Survey document did not recover the primary evidence within depth 100, so cross-document competition was not the main cause."
+  },
+  "representation_diagnostic_ne_en_005": {
+    "gold_chunk_pages": "314-315",
+    "nepali_query": {
+      "raw_dense_rank_within_gold_document_300": 124,
+      "contextual_dense_rank_within_gold_document_300": null
+    },
+    "controlled_english_query": {
+      "raw_dense_rank_within_gold_document_300": 36,
+      "contextual_dense_rank_within_gold_document_300": 80
+    },
+    "structured_table_representation_estimated_global_raw_dense_rank": {
+      "nepali_query": 29,
+      "controlled_english_query": 7
+    },
+    "interpretation": "The table-heavy GDP chunk is difficult for the current passage representation, especially under the Nepali query. Explicit table structure improved embedding similarity substantially but did not place the Nepali-query representation inside the production top 20."
+  },
+  "first_stage_primary_ranks": {
+    "ne_en_001": {
+      "production": 5,
+      "controlled_english_dense": 1,
+      "translated_hybrid": 7,
+      "dual_route_rrf": 5
+    },
+    "ne_en_002": {
+      "production": 2,
+      "controlled_english_dense": 2,
+      "translated_hybrid": 1,
+      "dual_route_rrf": 1
+    },
+    "ne_en_003": {
+      "production": 2,
+      "controlled_english_dense": 5,
+      "translated_hybrid": 6,
+      "dual_route_rrf": 3
+    },
+    "ne_en_004": {
+      "production": 1,
+      "controlled_english_dense": 2,
+      "translated_hybrid": 1,
+      "dual_route_rrf": 1
+    },
+    "ne_en_005": {
+      "production": null,
+      "controlled_english_dense": 85,
+      "translated_hybrid": 13,
+      "dual_route_rrf": null
+    },
+    "ne_en_006": {
+      "production": 1,
+      "controlled_english_dense": 1,
+      "translated_hybrid": 1,
+      "dual_route_rrf": 1
+    }
+  },
+  "first_stage_metrics": {
+    "5": {
+      "production": {
+        "hit_rate": 0.833,
+        "mrr": 0.533,
+        "recall": 0.667
+      },
+      "controlled_english": {
+        "hit_rate": 0.833,
+        "mrr": 0.533,
+        "recall": 0.667
+      },
+      "translated_hybrid": {
+        "hit_rate": 0.5,
+        "mrr": 0.5,
+        "recall": 0.556
+      },
+      "dual_route_rrf": {
+        "hit_rate": 0.833,
+        "mrr": 0.589,
+        "recall": 0.667
+      }
+    },
+    "10": {
+      "production": {
+        "hit_rate": 0.833,
+        "mrr": 0.533,
+        "recall": 0.722
+      },
+      "controlled_english": {
+        "hit_rate": 0.833,
+        "mrr": 0.533,
+        "recall": 0.778
+      },
+      "translated_hybrid": {
+        "hit_rate": 0.833,
+        "mrr": 0.552,
+        "recall": 0.833
+      },
+      "dual_route_rrf": {
+        "hit_rate": 0.833,
+        "mrr": 0.589,
+        "recall": 0.833
+      }
+    },
+    "20": {
+      "production": {
+        "hit_rate": 0.833,
+        "mrr": 0.533,
+        "recall": 0.778
+      },
+      "controlled_english": {
+        "hit_rate": 0.833,
+        "mrr": 0.533,
+        "recall": 0.833
+      },
+      "translated_hybrid": {
+        "hit_rate": 1.0,
+        "mrr": 0.564,
+        "recall": 1.0
+      },
+      "dual_route_rrf": {
+        "hit_rate": 0.833,
+        "mrr": 0.589,
+        "recall": 0.833
+      }
+    }
+  },
+  "reranked_primary_ranks": {
+    "ne_en_001": {
+      "production_first_stage": 5,
+      "production_bge": 1,
+      "translated_first_stage": 7,
+      "translated_bge": 1
+    },
+    "ne_en_002": {
+      "production_first_stage": 2,
+      "production_bge": 1,
+      "translated_first_stage": 1,
+      "translated_bge": 1
+    },
+    "ne_en_003": {
+      "production_first_stage": 2,
+      "production_bge": 6,
+      "translated_first_stage": 6,
+      "translated_bge": 5
+    },
+    "ne_en_004": {
+      "production_first_stage": 1,
+      "production_bge": 1,
+      "translated_first_stage": 1,
+      "translated_bge": 1
+    },
+    "ne_en_005": {
+      "production_first_stage": null,
+      "production_bge": null,
+      "translated_first_stage": 13,
+      "translated_bge": 6
+    },
+    "ne_en_006": {
+      "production_first_stage": 1,
+      "production_bge": 1,
+      "translated_first_stage": 1,
+      "translated_bge": 2
+    }
+  },
+  "reranked_metrics": {
+    "5": {
+      "production_first_stage": {
+        "hit_rate": 0.833,
+        "mrr": 0.533,
+        "recall": 0.667
+      },
+      "production_bge": {
+        "hit_rate": 0.667,
+        "mrr": 0.667,
+        "recall": 0.722
+      },
+      "translated_first_stage": {
+        "hit_rate": 0.5,
+        "mrr": 0.5,
+        "recall": 0.556
+      },
+      "translated_bge": {
+        "hit_rate": 0.833,
+        "mrr": 0.617,
+        "recall": 0.833
+      }
+    },
+    "10": {
+      "production_first_stage": {
+        "hit_rate": 0.833,
+        "mrr": 0.533,
+        "recall": 0.722
+      },
+      "production_bge": {
+        "hit_rate": 0.833,
+        "mrr": 0.694,
+        "recall": 0.778
+      },
+      "translated_first_stage": {
+        "hit_rate": 0.833,
+        "mrr": 0.552,
+        "recall": 0.833
+      },
+      "translated_bge": {
+        "hit_rate": 1.0,
+        "mrr": 0.644,
+        "recall": 1.0
+      }
+    },
+    "20": {
+      "production_first_stage": {
+        "hit_rate": 0.833,
+        "mrr": 0.533,
+        "recall": 0.778
+      },
+      "production_bge": {
+        "hit_rate": 0.833,
+        "mrr": 0.694,
+        "recall": 0.778
+      },
+      "translated_first_stage": {
+        "hit_rate": 1.0,
+        "mrr": 0.564,
+        "recall": 1.0
+      },
+      "translated_bge": {
+        "hit_rate": 1.0,
+        "mrr": 0.644,
+        "recall": 1.0
+      }
+    }
+  },
+  "conclusion": {
+    "measured_improvement": true,
+    "production_adoption": false,
+    "reason_not_promoted": "The improved candidate path depends on manually controlled English translations. Automatic translation quality, latency, cost, and full-benchmark regression behavior have not been evaluated.",
+    "main_finding": "For the six-question NE->EN slice, translated English contextual-dense plus BM25 retrieval with depth-100 components recovered all manually verified primary evidence within the final top-20 candidate pool. After reranking both variants with the original Nepali query, translated-hybrid BGE achieved 0.833 Hit@5 and 0.833 Recall@5 versus production BGE at 0.667 and 0.722. At @10 and @20, translated-hybrid BGE achieved 1.000 hit rate and 1.000 recall.",
+    "remaining_issue": "The translated-hybrid path slightly reduced MRR@5 relative to production BGE, 0.617 versus 0.667, and the persistent GDP case reached reranked rank 6 rather than the final top-5 context."
+  }
+}
