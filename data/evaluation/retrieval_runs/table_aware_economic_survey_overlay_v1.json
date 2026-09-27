@@ -1,0 +1,99 @@
+{
+  "english_corpus_point_count": 1643,
+  "metrics": {
+    "10": {
+      "contextual": {
+        "hit_rate": 0.4,
+        "mrr": 0.13333333333333333,
+        "recall": 0.25
+      },
+      "table_aware_overlay": {
+        "hit_rate": 0.4,
+        "mrr": 0.065,
+        "recall": 0.25
+      }
+    },
+    "20": {
+      "contextual": {
+        "hit_rate": 0.4,
+        "mrr": 0.13333333333333333,
+        "recall": 0.25
+      },
+      "table_aware_overlay": {
+        "hit_rate": 0.6,
+        "mrr": 0.08038461538461539,
+        "recall": 0.45
+      }
+    },
+    "5": {
+      "contextual": {
+        "hit_rate": 0.2,
+        "mrr": 0.1,
+        "recall": 0.2
+      },
+      "table_aware_overlay": {
+        "hit_rate": 0.2,
+        "mrr": 0.04,
+        "recall": 0.2
+      }
+    }
+  },
+  "primary_ranks": {
+    "en_en_004": {
+      "contextual": 6,
+      "table_aware_overlay": 8
+    },
+    "en_en_005": {
+      "contextual": 38,
+      "table_aware_overlay": 13
+    },
+    "en_en_006": {
+      "contextual": 2,
+      "table_aware_overlay": 5
+    },
+    "en_en_011": {
+      "contextual": 85,
+      "table_aware_overlay": 70
+    },
+    "ne_en_005": {
+      "contextual": 840,
+      "table_aware_overlay": 936
+    }
+  },
+  "production_changed": false,
+  "question_count": 5,
+  "question_ids": [
+    "en_en_004",
+    "en_en_005",
+    "en_en_006",
+    "en_en_011",
+    "ne_en_005"
+  ],
+  "run_config_id": "table-aware-economic-survey-overlay-v1",
+  "schema_version": 1,
+  "simulation": {
+    "baseline_vector": "dense_contextual",
+    "non_table_vectors_changed": false,
+    "qdrant_modified": false,
+    "replacement_scope": "detected table-like passages inside economic_survey_2023_24_en"
+  },
+  "table_hints_for_primary_evidence": {
+    "028b4f22-a2d8-57d6-84aa-819330f738dd": [
+      "Annex 11.9: Details of Scholarship for School Children Activities S.N",
+      "Annex 11.10: Details of students Appeared and passed in Secondary Education Examination, Regular SEE (SLC examination)"
+    ],
+    "145add01-c0eb-5201-8c37-9ce095fac25f": [
+      "Annex 11.14: Number of Basic, Lower Secondary and Secondary Schools and Students (Students number in thousand)"
+    ],
+    "332cdfc6-3b19-564d-ac21-64a6fae52238": [
+      "Annex 1.1: Annual Growth Rate of GDP by Economic Activities"
+    ],
+    "a155f4a1-2cef-5a44-82b8-9480f51cb6e8": [
+      "Annex 11.11: Educational Indicators"
+    ]
+  },
+  "table_like_point_count": 204,
+  "target_document_id": "economic_survey_2023_24_en",
+  "target_document_point_count": 1204,
+  "target_language": "en"
+}
