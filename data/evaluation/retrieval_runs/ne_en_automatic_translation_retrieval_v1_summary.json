@@ -1,0 +1,257 @@
+{
+  "automatic_metrics": {
+    "10": {
+      "automatic_bge": {
+        "hit_rate": 0.8333333333333334,
+        "mrr": 0.6166666666666667,
+        "recall": 0.8333333333333334
+      },
+      "automatic_first_stage": {
+        "hit_rate": 0.6666666666666666,
+        "mrr": 0.3611111111111111,
+        "recall": 0.611111111111111
+      }
+    },
+    "20": {
+      "automatic_bge": {
+        "hit_rate": 0.8333333333333334,
+        "mrr": 0.6166666666666667,
+        "recall": 0.8333333333333334
+      },
+      "automatic_first_stage": {
+        "hit_rate": 0.8333333333333334,
+        "mrr": 0.37222222222222223,
+        "recall": 0.8333333333333334
+      }
+    },
+    "5": {
+      "automatic_bge": {
+        "hit_rate": 0.8333333333333334,
+        "mrr": 0.6166666666666667,
+        "recall": 0.8333333333333334
+      },
+      "automatic_first_stage": {
+        "hit_rate": 0.5,
+        "mrr": 0.3333333333333333,
+        "recall": 0.47222222222222215
+      }
+    }
+  },
+  "baseline_metrics": {
+    "first_stage": {
+      "10": {
+        "controlled_english": {
+          "hit_rate": 0.833,
+          "mrr": 0.533,
+          "recall": 0.778
+        },
+        "dual_route_rrf": {
+          "hit_rate": 0.833,
+          "mrr": 0.589,
+          "recall": 0.833
+        },
+        "production": {
+          "hit_rate": 0.833,
+          "mrr": 0.533,
+          "recall": 0.722
+        },
+        "translated_hybrid": {
+          "hit_rate": 0.833,
+          "mrr": 0.552,
+          "recall": 0.833
+        }
+      },
+      "20": {
+        "controlled_english": {
+          "hit_rate": 0.833,
+          "mrr": 0.533,
+          "recall": 0.833
+        },
+        "dual_route_rrf": {
+          "hit_rate": 0.833,
+          "mrr": 0.589,
+          "recall": 0.833
+        },
+        "production": {
+          "hit_rate": 0.833,
+          "mrr": 0.533,
+          "recall": 0.778
+        },
+        "translated_hybrid": {
+          "hit_rate": 1.0,
+          "mrr": 0.564,
+          "recall": 1.0
+        }
+      },
+      "5": {
+        "controlled_english": {
+          "hit_rate": 0.833,
+          "mrr": 0.533,
+          "recall": 0.667
+        },
+        "dual_route_rrf": {
+          "hit_rate": 0.833,
+          "mrr": 0.589,
+          "recall": 0.667
+        },
+        "production": {
+          "hit_rate": 0.833,
+          "mrr": 0.533,
+          "recall": 0.667
+        },
+        "translated_hybrid": {
+          "hit_rate": 0.5,
+          "mrr": 0.5,
+          "recall": 0.556
+        }
+      }
+    },
+    "reranked": {
+      "10": {
+        "production_bge": {
+          "hit_rate": 0.833,
+          "mrr": 0.694,
+          "recall": 0.778
+        },
+        "production_first_stage": {
+          "hit_rate": 0.833,
+          "mrr": 0.533,
+          "recall": 0.722
+        },
+        "translated_bge": {
+          "hit_rate": 1.0,
+          "mrr": 0.644,
+          "recall": 1.0
+        },
+        "translated_first_stage": {
+          "hit_rate": 0.833,
+          "mrr": 0.552,
+          "recall": 0.833
+        }
+      },
+      "20": {
+        "production_bge": {
+          "hit_rate": 0.833,
+          "mrr": 0.694,
+          "recall": 0.778
+        },
+        "production_first_stage": {
+          "hit_rate": 0.833,
+          "mrr": 0.533,
+          "recall": 0.778
+        },
+        "translated_bge": {
+          "hit_rate": 1.0,
+          "mrr": 0.644,
+          "recall": 1.0
+        },
+        "translated_first_stage": {
+          "hit_rate": 1.0,
+          "mrr": 0.564,
+          "recall": 1.0
+        }
+      },
+      "5": {
+        "production_bge": {
+          "hit_rate": 0.667,
+          "mrr": 0.667,
+          "recall": 0.722
+        },
+        "production_first_stage": {
+          "hit_rate": 0.833,
+          "mrr": 0.533,
+          "recall": 0.667
+        },
+        "translated_bge": {
+          "hit_rate": 0.833,
+          "mrr": 0.617,
+          "recall": 0.833
+        },
+        "translated_first_stage": {
+          "hit_rate": 0.5,
+          "mrr": 0.5,
+          "recall": 0.556
+        }
+      }
+    }
+  },
+  "baseline_run_config_id": "ne-en-targeted-retrieval-v1",
+  "candidate_generation": {
+    "automatic_query_source": "gemini_translation",
+    "bm25_component_depth": 100,
+    "dense_component_depth": 100,
+    "dense_vector": "dense_contextual",
+    "final_candidate_depth": 20,
+    "fusion": "reciprocal_rank_fusion",
+    "reranker_query": "original_nepali_query"
+  },
+  "primary_ranks": {
+    "ne_en_001": {
+      "automatic_bge": 1,
+      "automatic_dense": 1,
+      "automatic_first_stage": 15,
+      "manual_bge": 1,
+      "manual_first_stage": 7,
+      "production_bge": 1,
+      "production_first_stage": 5
+    },
+    "ne_en_002": {
+      "automatic_bge": 1,
+      "automatic_dense": 2,
+      "automatic_first_stage": 2,
+      "manual_bge": 1,
+      "manual_first_stage": 1,
+      "production_bge": 1,
+      "production_first_stage": 2
+    },
+    "ne_en_003": {
+      "automatic_bge": 5,
+      "automatic_dense": 6,
+      "automatic_first_stage": 6,
+      "manual_bge": 5,
+      "manual_first_stage": 6,
+      "production_bge": 6,
+      "production_first_stage": 2
+    },
+    "ne_en_004": {
+      "automatic_bge": 1,
+      "automatic_dense": 2,
+      "automatic_first_stage": 1,
+      "manual_bge": 1,
+      "manual_first_stage": 1,
+      "production_bge": 1,
+      "production_first_stage": 1
+    },
+    "ne_en_005": {
+      "automatic_bge": null,
+      "automatic_dense": 88,
+      "automatic_first_stage": null,
+      "manual_bge": 6,
+      "manual_first_stage": 13,
+      "production_bge": null,
+      "production_first_stage": null
+    },
+    "ne_en_006": {
+      "automatic_bge": 2,
+      "automatic_dense": 1,
+      "automatic_first_stage": 2,
+      "manual_bge": 2,
+      "manual_first_stage": 1,
+      "production_bge": 1,
+      "production_first_stage": 1
+    }
+  },
+  "production_changed": false,
+  "question_count": 6,
+  "question_ids": [
+    "ne_en_001",
+    "ne_en_002",
+    "ne_en_003",
+    "ne_en_004",
+    "ne_en_005",
+    "ne_en_006"
+  ],
+  "run_config_id": "ne-en-automatic-translation-retrieval-v1",
+  "schema_version": 1,
+  "translation_config_id": "ne-en-query-translation-v1"
+}

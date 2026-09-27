@@ -1,12 +1,12 @@
 # NepalGov AI — Current Project Status
 
-Last updated: 2026-09-21
+Last updated: 2026-09-27
 
 ## Purpose of This Document
 
 This file is the project handoff and checkpoint document for NepalGov AI.
 
-It exists so development can continue accurately across ChatGPT conversations without reconstructing architectural decisions, benchmark results, evaluation history, and remaining work from scratch.
+It exists so development can continue accurately across ChatGPT conversations without reconstructing architectural decisions, benchmark results, evaluation history, production decisions, and remaining work from scratch.
 
 Technical source of truth remains:
 
@@ -56,220 +56,500 @@ V1 domains:
 
 The complete V1 RAG execution path is implemented.
 
-The project now has evaluation at five distinct levels:
+The system now has evaluation at multiple independent levels:
 
 1. retrieval and selected-context coverage
 2. structural citation correctness
 3. human-reviewed claim-level semantic support
 4. automated semantic-judge agreement with human labels
-5. response-level answer-versus-abstention behavior
+5. hard-negative and ambiguity semantic-judge evaluation
+6. structural insufficient-evidence handling
+7. human response-level answer / abstention / partial-answer behavior
+8. targeted cross-lingual retrieval diagnostics
+9. response-level answer completeness
+10. response-level factual fidelity
 
-The project also has a deterministic consolidated production-quality checkpoint that combines all persisted evaluation layers without rerunning hosted generation.
+The project now has a second deterministic consolidated production-quality checkpoint that preserves the previous checkpoint and adds the latest four-milestone evaluation cycle.
 
-Completed major layers:
+Completed major system layers:
 
 1. document ingestion and chunking
 2. multilingual dense embeddings
-3. sparse BM25 representations
-4. multilingual hybrid retrieval
-5. multilingual reranking
-6. context selection
-7. provider-independent generation abstraction
-8. Gemini generation provider
-9. grounded evidence prompt
-10. citation/evidence processing
-11. structural insufficient-evidence handling
-12. application-level RAG orchestration
-13. deterministic RAG evaluation metrics
-14. resumable production RAG benchmark runner
-15. Gemini Interactions API transport
-16. complete 30-question production RAG benchmark
-17. deterministic claim-to-citation alignment
-18. semantic citation dataset with exact passages
-19. deterministic stratified human semantic-review subset
-20. completed human semantic citation evaluation
-21. automated semantic judge with human-label validation
-22. dedicated insufficient-evidence benchmark
-23. human response-level abstention evaluation
-24. deterministic consolidated production-quality checkpoint
+3. contextual dense embeddings
+4. sparse BM25 representations
+5. multilingual hybrid retrieval
+6. multilingual reranking
+7. context selection
+8. provider-independent generation abstraction
+9. Gemini generation provider
+10. grounded evidence prompt
+11. citation/evidence processing
+12. structural insufficient-evidence handling
+13. application-level RAG orchestration
+14. deterministic RAG evaluation metrics
+15. resumable production RAG benchmark runner
+16. Gemini Interactions API transport
+17. complete 30-question production RAG benchmark
+18. deterministic claim-to-citation alignment
+19. semantic citation dataset with exact passages
+20. deterministic stratified human semantic-review subset
+21. completed human semantic citation evaluation
+22. automated semantic judge with human-label validation
+23. insufficient-evidence benchmark
+24. human response-level abstention evaluation
+25. deterministic production-quality checkpoint V1
+26. partial/mixed insufficient-evidence benchmark
+27. hard semantic-judge challenge set
+28. targeted NE -> EN retrieval experiments
+29. full 30-question answer-completeness and factual-fidelity review
+30. deterministic production-quality checkpoint V2
 
 Current validated test suite:
 
 ```text
-467 passed
+604 passed in 3.35s
 ```
 
 Latest committed and pushed milestone on `main`:
 
 ```text
-99e10df — Add production quality checkpoint
+1e7619d — Add answer quality evaluation checkpoint
 ```
 
 Current repository head before this status-document checkpoint update:
 
 ```text
-99e10df — Add production quality checkpoint
+1e7619d — Add answer quality evaluation checkpoint
 ```
 
-Current official production RAG benchmark:
+Current development phase:
+
+**Measured retrieval and answer-quality improvement without speculative production changes.**
+
+---
+
+# Corpus
+
+The indexed corpus currently contains six Government of Nepal documents and 2,276 chunks.
+
+Documents:
+
+```text
+constitution_nepal_current_en
+public_health_service_act_2075_en
+compulsory_free_education_act_2075_en
+economic_survey_2023_24_en
+economic_survey_2081_82_ne
+budget_speech_2025_26_en
+```
+
+The Nepali Economic Survey requires forced OCR.
+
+Do not rerun forced OCR unless a corpus change or explicit reprocessing requirement makes it necessary.
+
+Original extracted passage text remains canonical evidence.
+
+---
+
+# Embeddings and Index
+
+Embedding model:
+
+```text
+intfloat/multilingual-e5-large-instruct
+```
+
+Embedding dimension:
+
+```text
+1024
+```
+
+Qdrant collection:
+
+```text
+nepal_gov_documents
+```
+
+Stored named vectors:
+
+```text
+dense
+dense_contextual
+bm25
+```
+
+The production semantic representation is:
+
+```text
+dense_contextual
+```
+
+Raw dense vectors remain preserved.
+
+Contextual dense vectors remain separately preserved.
+
+Sparse BM25 vectors remain preserved.
+
+The original passage text remains preserved in the Qdrant payload.
+
+No representation should be deleted merely because another representation currently performs better in production.
+
+---
+
+# Contextual Passage Representation
+
+Current contextual passage construction uses metadata fields such as:
+
+```text
+Document
+Organization
+Document type
+Section
+Subsection
+Article number
+Article title
+```
+
+followed by:
+
+```text
+Content:
+<original chunk text>
+```
+
+The current contextual passage implementation does **not** automatically extract table captions or table titles from inside the original chunk text.
+
+This became important during the latest NE -> EN Economic Survey retrieval diagnostics.
+
+---
+
+# Production Retrieval Architecture
+
+Same-language retrieval:
+
+```text
+dense_contextual + BM25 -> Reciprocal Rank Fusion
+```
+
+Cross-language retrieval:
+
+```text
+dense_contextual only
+```
+
+Cross-language BM25 is intentionally skipped in current production because lexical overlap cannot be assumed across languages.
+
+Query-language detection treats Devanagari-containing queries as Nepali and other queries as English.
+
+Candidate depth:
+
+```text
+20
+```
+
+RRF and dense retrieval remain independently callable.
+
+Production retrieval has **not** been modified during the latest evaluation cycle.
+
+---
+
+# Reranker
+
+Production reranker:
+
+```text
+BAAI/bge-reranker-v2-m3
+```
+
+Production candidate count:
+
+```text
+20
+```
+
+Reranker receives the candidate pool returned by first-stage retrieval.
+
+A passage missing from the top-20 first-stage candidate pool cannot be recovered by the reranker.
+
+This distinction was important in the latest NE -> EN diagnostics.
+
+---
+
+# Context Selection
+
+Final selected context:
+
+```text
+top 5
+```
+
+The context-selection stage reranks the candidate pool and returns a fixed five-passage context.
+
+No production change to context selection was made during the current evaluation cycle.
+
+---
+
+# Generation Architecture
+
+Generation package:
+
+```text
+google-genai==2.24.0
+```
+
+Production generation model:
+
+```text
+gemini-3.8-flash
+```
+
+Transport:
+
+```text
+Gemini Interactions API
+```
+
+Current production call:
+
+```python
+interaction = client.interactions.create(
+    model=self.model_name,
+    input=prompt,
+)
+
+answer_text = interaction.output_text
+```
+
+Generation uses:
+
+```text
+GEMINI_API_KEY
+```
+
+Hosted multilingual E5 uses:
+
+```text
+HF_TOKEN
+```
+
+Hosted reranking configuration remains environment-based.
+
+Secrets must never be committed, printed, pasted into chats, or included in evaluation artifacts.
+
+---
+
+# Evidence Guard
+
+The production evidence guard is intentionally structural.
+
+It rejects:
+
+* missing selected context
+* missing required citations
+* invalid evidence references
+* references to evidence that was not selected
+
+It does not use an arbitrary retrieval-score threshold.
+
+The evidence guard does not itself perform semantic entailment evaluation.
+
+Therefore it is possible for:
+
+```text
+structural guard state = accepted
+```
+
+while the generated answer itself semantically says that the available evidence is insufficient.
+
+This distinction is intentionally measured separately.
+
+No brittle multilingual string matching has been introduced merely to force structural guard state to mirror semantic answer behavior.
+
+---
+
+# Official Production RAG Benchmark
+
+Artifact:
 
 ```text
 data/evaluation/rag_runs/production_rag_v2_interactions.jsonl
 ```
 
-Production benchmark questions:
+Run configuration:
 
 ```text
-30
-```
-
-Current semantic claim dataset:
-
-```text
-data/evaluation/semantic/production_rag_v2_claims.jsonl
-```
-
-Semantic claim rows:
-
-```text
-290
-```
-
-Current human semantic reference set:
-
-```text
-data/evaluation/semantic/production_rag_v2_human_review_v1_labeled.jsonl
-```
-
-Human-reviewed claims:
-
-```text
-48/48
-```
-
-Current automated semantic-judge output:
-
-```text
-data/evaluation/semantic/production_rag_v2_human_review_v1_judge.jsonl
-```
-
-Automated judge predictions:
-
-```text
-48/48
-```
-
-Current insufficient-evidence benchmark:
-
-```text
-data/evaluation/insufficient_evidence_questions.jsonl
+production-rag-v2-interactions
 ```
 
 Questions:
 
 ```text
-16
+30
 ```
 
-Persisted insufficient-evidence run:
+Language allocation:
 
 ```text
-data/evaluation/rag_runs/insufficient_evidence_v1.jsonl
+EN -> EN: 12
+NE -> NE:  6
+EN -> NE:  6
+NE -> EN:  6
 ```
 
-Human response-level review:
+Benchmark notation means:
 
 ```text
-data/evaluation/rag_runs/insufficient_evidence_v1_response_review.jsonl
+query_language -> evidence/document language
 ```
 
-Current consolidated quality checkpoint:
+It does **not** mean answer language.
+
+Production answer language is intentionally:
 
 ```text
-data/evaluation/production_quality_checkpoint_v1.json
+query language
 ```
 
-Next major development direction:
-
-**Expand hard-case evaluation coverage and improve measured retrieval weaknesses without changing production speculatively.**
-
----
-
-# Latest Four-Milestone Checkpoint
-
-This checkpoint captures the following completed milestones:
-
-1. Automated Semantic Judge Validation
-2. Insufficient-Evidence Benchmark
-3. Human Response-Level Abstention Evaluation
-4. Consolidated Production-Quality Checkpoint
-
-This evaluation cycle established an important distinction between:
+Therefore:
 
 ```text
-structural guard state
+EN -> NE
+```
+
+means:
+
+```text
+English query
+Nepali evidence
+English answer
 ```
 
 and:
 
 ```text
-actual user-visible semantic behavior
+NE -> EN
 ```
 
-It also validated an automated semantic judge against human labels before using it as a broader evaluation instrument.
+means:
 
-No production retrieval, reranking, context-selection, prompt, generation, citation-processing, or evidence-guard behavior was changed during this four-milestone cycle.
-
-Therefore the existing official 30-question hosted production benchmark remains the current production baseline.
-
-A new 30-question Gemini generation run was intentionally not performed because it would have been another stochastic sample of an unchanged production system rather than a measurement of a production intervention.
+```text
+Nepali query
+English evidence
+Nepali answer
+```
 
 ---
 
-# Milestone 1 — Automated Semantic Judge Validation
+# Official Production Structural Results
 
-Committed and pushed as:
+| Slice | N | Accept | SelHit | SelRec | CitHit | CitPrec | CitRec | Valid |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| EN -> EN | 12 | 1.000 | 0.833 | 0.792 | 0.833 | 0.533 | 0.792 | 1.000 |
+| NE -> NE | 6 | 1.000 | 1.000 | 1.000 | 1.000 | 0.458 | 0.917 | 1.000 |
+| EN -> NE | 6 | 1.000 | 0.833 | 0.861 | 0.833 | 0.347 | 0.778 | 1.000 |
+| NE -> EN | 6 | 1.000 | 0.667 | 0.722 | 0.667 | 0.539 | 0.722 | 1.000 |
+| **Overall** | **30** | **1.000** | **0.833** | **0.833** | **0.833** | **0.482** | **0.800** | **1.000** |
 
-```text
-7a62a77 — Add automated semantic judge evaluation
-```
+These are structural evidence-identity metrics.
 
-Implementation:
+They are not claim-level factual-faithfulness metrics.
 
-```text
-src/evaluation/semantic_judge.py
-src/evaluation/run_semantic_judge.py
-```
+---
 
-Tests:
+# Human Semantic Citation Evaluation
 
-```text
-tests/test_semantic_judge.py
-tests/test_run_semantic_judge.py
-```
-
-Persisted predictions:
+Semantic claim dataset:
 
 ```text
-data/evaluation/semantic/production_rag_v2_human_review_v1_judge.jsonl
+data/evaluation/semantic/production_rag_v2_claims.jsonl
 ```
 
-Reference set:
+Total claims:
+
+```text
+290
+```
+
+Human semantic reference:
 
 ```text
 data/evaluation/semantic/production_rag_v2_human_review_v1_labeled.jsonl
 ```
 
-Human reference claims:
+Reviewed claims:
 
 ```text
-48
+48/48
 ```
 
-Automated predictions:
+Sampling:
 
 ```text
-48
+12 claims per language pair
+```
+
+The human semantic set is a deterministic stratified diagnostic sample.
+
+It is not a population-proportional random sample of all 290 production claims.
+
+Overall claim-level results:
+
+```text
+Fully supported                    = 0.950
+At least partially supported       = 1.000
+Unsupported                        = 0.000
+Required citation coverage         = 1.000
+```
+
+Individual citation evidence:
+
+```text
+Individual citations reviewed      = 48
+Supported                          = 44
+Partially supported                = 3
+Unsupported                        = 1
+Needs review                       = 0
+```
+
+Rates:
+
+```text
+Individual full support            = 0.917
+Individual at least partial        = 0.979
+Individual unsupported             = 0.021
+```
+
+Important terminology correction:
+
+The historical:
+
+```text
+IndSup = 0.979
+```
+
+means:
+
+```text
+individual_at_least_partial_support_rate
+```
+
+It does **not** mean individual full support.
+
+The actual individual full-support rate is:
+
+```text
+0.917
+```
+
+---
+
+# Automated Semantic Judge — Original Human Reference
+
+Persisted predictions:
+
+```text
+data/evaluation/semantic/production_rag_v2_human_review_v1_judge.jsonl
 ```
 
 Judge provider:
@@ -284,125 +564,40 @@ Judge model:
 gemini-3.8-flash
 ```
 
-Run configuration:
+Agreement against the original 48 human-reviewed claims:
 
 ```text
-production-rag-v2-human-review-v1-semantic-judge-v1
+Semantic exact agreement           = 0.979
+Citation-requirement agreement     = 1.000
+Individual-evidence agreement      = 0.958
 ```
 
-The automated judge evaluates three properties:
-
-1. joint semantic support
-2. citation requirement
-3. individual evidence support
-
-Semantic labels:
+The original 48-claim reference contains no human:
 
 ```text
-supported
-partially_supported
-unsupported
-not_a_factual_claim
-needs_review
-```
-
-Citation-requirement labels:
-
-```text
-required
-not_required
-unclear
-```
-
-Individual-evidence labels:
-
-```text
-supported
-partially_supported
 unsupported
 needs_review
+unclear citation requirement
 ```
 
-Human labels remain the reference standard.
+examples.
 
-Human labels are deliberately excluded from judge prompts.
-
-Persisted predictions include prompt SHA-256 values so predictions generated with an older judge prompt cannot silently be reused after prompt changes.
-
-## Automated Judge Agreement
-
-Final overall agreement:
-
-```text
-Semantic exact agreement:       0.979
-Citation-requirement agreement: 1.000
-Individual-evidence agreement:  0.958
-```
-
-Semantic exact count:
-
-```text
-47/48
-```
-
-Observed human-to-judge semantic confusion:
-
-```text
-Human not_a_factual_claim:
-    8 -> not_a_factual_claim
-
-Human supported:
-    38 -> supported
-
-Human partially_supported:
-    1 -> partially_supported
-    1 -> supported
-```
-
-The only joint semantic disagreement was therefore one human:
-
-```text
-partially_supported
-```
-
-claim classified by the automated judge as:
-
-```text
-supported
-```
-
-## Automated Judge Limitation
-
-The 48-claim human reference contains:
-
-```text
-0 human unsupported examples
-0 human needs_review examples
-0 human unclear citation-requirement examples
-```
-
-Therefore high overall exact agreement does **not** establish judge reliability on those absent classes.
-
-The semantic judge remains evaluation-only.
-
-It is not part of the production evidence guard.
-
-It must not be treated as authoritative for unsupported or ambiguous classes until those classes have human reference examples.
+Therefore the latest development cycle added a separate hard-case challenge set.
 
 ---
 
-# Milestone 2 — Insufficient-Evidence Benchmark
-
-Committed and pushed as:
-
-```text
-c3d60b7 — Add insufficient evidence benchmark
-```
+# Original Insufficient-Evidence Benchmark
 
 Dataset:
 
 ```text
 data/evaluation/insufficient_evidence_questions.jsonl
+```
+
+Questions:
+
+```text
+16
 ```
 
 Persisted run:
@@ -411,24 +606,10 @@ Persisted run:
 data/evaluation/rag_runs/insufficient_evidence_v1.jsonl
 ```
 
-Implementation:
+Human response review:
 
 ```text
-src/evaluation/insufficient_evidence_evaluator.py
-src/evaluation/run_insufficient_evidence_evaluation.py
-```
-
-Tests:
-
-```text
-tests/test_insufficient_evidence_evaluator.py
-tests/test_run_insufficient_evidence_evaluation.py
-```
-
-Benchmark size:
-
-```text
-16 questions
+data/evaluation/rag_runs/insufficient_evidence_v1_response_review.jsonl
 ```
 
 Language allocation:
@@ -451,26 +632,11 @@ Each language pair contains:
 Total:
 
 ```text
-8 expected-answer cases
-8 expected-withhold cases
+8 expected-answer
+8 expected-withhold
 ```
 
-Current benchmark case types:
-
-```text
-answerable_control
-out_of_corpus_document
-out_of_corpus_period
-```
-
-Supported evaluator case types that are not yet represented in the dataset:
-
-```text
-partial_evidence
-mixed_supported_unsupported
-```
-
-## Structural Insufficient-Evidence Results
+Structural results:
 
 | Slice | N | Decision | Answer Accept | Withhold | False Accept | False Withhold |
 |---|---:|---:|---:|---:|---:|---:|
@@ -480,112 +646,27 @@ mixed_supported_unsupported
 | NE -> EN | 4 | 1.000 | 1.000 | 1.000 | 0.000 | 0.000 |
 | **Overall** | **16** | **0.938** | **1.000** | **0.875** | **0.125** | **0.000** |
 
-By case type:
-
-| Case type | N | Decision | Withhold |
-|---|---:|---:|---:|
-| answerable_control | 8 | 1.000 | n/a |
-| out_of_corpus_document | 4 | 1.000 | 1.000 |
-| out_of_corpus_period | 4 | 0.750 | 0.750 |
-
 The one structural false accept was:
 
 ```text
 ie_ne_ne_004
 ```
 
-Query:
+The model-generated answer itself correctly abstained because the requested period was not available.
 
-```text
-आर्थिक सर्वेक्षण २०८२/८३ ले बेरोजगारीबारे के तथ्याङ्क दिएको छ?
-```
-
-Expected behavior:
-
-```text
-withhold
-```
-
-Case type:
-
-```text
-out_of_corpus_period
-```
-
-The structural evidence guard classified the generation as:
-
-```text
-accepted
-```
-
-because the generated text contained a valid citation.
-
-However, the generated answer itself explicitly stated that the requested Economic Survey 2082/83 evidence was unavailable and that only 2081/82 evidence was present.
-
-This motivated a separate response-level human evaluation rather than changing production immediately based on structural metrics alone.
+Therefore structural guard state and semantic response behavior were evaluated separately.
 
 ---
 
-# Milestone 3 — Human Response-Level Abstention Evaluation
+# Original Human Response-Level Abstention Results
 
-Primary milestone commit:
-
-```text
-d622873 — Add response abstention evaluation
-```
-
-Follow-up metadata correction:
+Human-reviewed responses:
 
 ```text
-ab91220 — Correct response review language notes
+16/16
 ```
 
-Implementation:
-
-```text
-src/evaluation/response_behavior_review.py
-```
-
-Tests:
-
-```text
-tests/test_response_behavior_review.py
-```
-
-Human-reviewed artifact:
-
-```text
-data/evaluation/rag_runs/insufficient_evidence_v1_response_review.jsonl
-```
-
-The review reuses the exact 16 persisted application outputs from the insufficient-evidence benchmark.
-
-No additional hosted generation calls are required.
-
-The review separates:
-
-```text
-structural guard decision
-```
-
-from:
-
-```text
-application-visible answer behavior
-```
-
-Review labels:
-
-```text
-substantive_answer
-abstained
-partial_answer_with_limitation
-needs_review
-```
-
-Review is resumable and written atomically after each completed item.
-
-## Human Response-Level Results
+Results:
 
 | Slice | N | Done | Behavior Accuracy | Answer Delivery | Abstention Success | Unsafe Answer | Guard Agreement |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -595,130 +676,19 @@ Review is resumable and written atomically after each completed item.
 | NE -> EN | 4 | 1.000 | 1.000 | 1.000 | 1.000 | 0.000 | 1.000 |
 | **Overall** | **16** | **1.000** | **1.000** | **1.000** | **1.000** | **0.000** | **0.938** |
 
-Additional counts:
-
-```text
-Reviewed responses: 16/16
-Partial answers: 0
-Needs-review responses: 0
-
-Unsafe substantive answers on expected-withhold cases: 0
-Unnecessary abstentions on answerable controls: 0
-
-Structural false accepts: 1
-Safe semantic abstentions among structural false accepts: 1
-```
-
 All eight answerable controls received substantive answers.
 
 All eight expected-withhold cases semantically abstained.
 
-The structurally false-accepted `ie_ne_ne_004` response was therefore a:
+Unsafe substantive answers:
 
 ```text
-safe semantic abstention
-```
-
-rather than an unsafe answer.
-
-## Structural Guard vs User-Visible Behavior
-
-The current evidence guard is intentionally structural.
-
-A generated answer containing a valid citation can pass the guard even when the model-written answer is itself an abstention.
-
-Therefore:
-
-```text
-structural accepted
-```
-
-does not necessarily mean:
-
-```text
-substantive answer delivered
-```
-
-The current 16-case human review found:
-
-```text
-Structural agreement with response behavior = 0.938
-Actual response-behavior accuracy           = 1.000
-```
-
-This distinction is now explicitly measured.
-
-No production evidence-guard change was made based on the single structural mismatch because the application-visible behavior was safe.
-
-Adding brittle multilingual string matching merely to make the structural state mirror model-written abstention text would risk metric-driven complexity without demonstrated user benefit.
-
-## Language-Pair Meaning
-
-In benchmark notation:
-
-```text
-query_language -> target_language
-```
-
-the second language is the **retrieval corpus language**, not the requested output language.
-
-Production intentionally uses:
-
-```python
-answer_language = record.query_language
-```
-
-and:
-
-```python
-filters = {
-    "language": record.target_language
-}
-```
-
-Therefore:
-
-```text
-EN -> NE
-```
-
-means:
-
-```text
-English query
-retrieval from Nepali-language evidence
-English answer
-```
-
-and:
-
-```text
-NE -> EN
-```
-
-means:
-
-```text
-Nepali query
-retrieval from English-language evidence
-Nepali answer
-```
-
-This interpretation was explicitly corrected in the response-review notes in:
-
-```text
-ab91220 — Correct response review language notes
+0
 ```
 
 ---
 
-# Milestone 4 — Consolidated Production-Quality Checkpoint
-
-Committed and pushed as:
-
-```text
-99e10df — Add production quality checkpoint
-```
+# Production Quality Checkpoint V1
 
 Implementation:
 
@@ -726,1462 +696,1298 @@ Implementation:
 src/evaluation/production_quality_checkpoint.py
 ```
 
-Tests:
-
-```text
-tests/test_production_quality_checkpoint.py
-```
-
-Output:
+Artifact:
 
 ```text
 data/evaluation/production_quality_checkpoint_v1.json
 ```
 
-Checkpoint configuration:
+Configuration:
 
 ```text
 production-quality-checkpoint-v1
 ```
 
-Schema version:
+V1 consolidates:
 
-```text
-1
-```
-
-The checkpoint deterministically consolidates:
-
-1. official production RAG structural benchmark
+1. official production structural benchmark
 2. human semantic citation review
 3. automated semantic-judge agreement
-4. structural insufficient-evidence benchmark
-5. human response-level abstention review
+4. original insufficient-evidence benchmark
+5. original human response-behavior review
 
-No:
-
-* hosted generation
-* retrieval
-* reranking
-* embedding
-* Gemini production answer generation
-
-is executed by the checkpoint builder.
-
-It recomputes metrics from persisted artifacts using the current evaluation code.
-
-## Consolidated Headline Results
-
-### Official production RAG benchmark
+V1 was committed as:
 
 ```text
-Selected primary hit:       0.833
-Selected relevant recall:   0.833
-Cited primary hit:          0.833
-Cited relevant precision:   0.482
-Cited relevant recall:      0.800
-Valid citation references:  1.000
+99e10df — Add production quality checkpoint
 ```
 
-### Human semantic citation review
+Status checkpoint after that four-milestone cycle:
 
 ```text
-Fully supported factual claims:       0.950
-At least partially supported claims:  1.000
-Unsupported factual claims:           0.000
-Required citation coverage:           1.000
-```
-
-Individual citation support:
-
-```text
-Fully supported:              0.917
-At least partially supported: 0.979
-Unsupported:                  0.021
-```
-
-Counts:
-
-```text
-Individual citations reviewed:   48
-Fully supported:                 44
-Partially supported:              3
-Unsupported:                      1
-Needs review:                     0
-```
-
-Important terminology correction:
-
-The `IndSup` column printed by:
-
-```text
-python -m src.evaluation.semantic_review summary
-```
-
-uses:
-
-```text
-individual_at_least_partial_support_rate
-```
-
-Therefore the previously reported:
-
-```text
-IndSup = 0.979
-```
-
-means:
-
-```text
-97.9% of reviewed individual citations had at least partial support
-```
-
-It does **not** mean that 97.9% were fully supported.
-
-The actual individual full-support rate is:
-
-```text
-0.917
-```
-
-### Automated semantic judge
-
-```text
-Semantic exact agreement:       0.979
-Citation-requirement agreement: 1.000
-Individual-evidence agreement:  0.958
-```
-
-### Structural insufficient-evidence evaluation
-
-```text
-Decision accuracy:               0.938
-Answer acceptance:               1.000
-Withholding success:             0.875
-Structural false-accept rate:    0.125
-Structural false-withhold rate:  0.000
-```
-
-### Human response-level behavior
-
-```text
-Behavior accuracy:               1.000
-Answer delivery:                 1.000
-Semantic abstention success:     1.000
-Unsafe substantive-answer rate: 0.000
-Structural behavior agreement:   0.938
+c2c6f08 — Update production quality checkpoint
 ```
 
 ---
 
-# Why the 30-Question Hosted Production Benchmark Was Not Rerun
+# Latest Four-Milestone Cycle
 
-No production component changed during this four-milestone evaluation cycle.
+The latest four-milestone cycle is complete.
 
-The unchanged production path includes:
-
-* retrieval
-* BM25/RRF routing
-* candidate depth
-* reranking
-* context selection
-* grounded prompt
-* Gemini generation model
-* Gemini transport
-* citation processing
-* evidence guard
-* RAG orchestration
-
-Therefore a fresh 30-question hosted Gemini run would have been another stochastic sample of the same production configuration.
-
-It would not measure an architectural or policy intervention.
-
-The checkpoint explicitly records:
+Milestones:
 
 ```text
-hosted_production_rerun_performed = false
-official_production_benchmark_retained = true
+1. Expand insufficient-evidence benchmark with partial/mixed cases
+2. Expand semantic-judge evaluation with hard negative and ambiguous classes
+3. Benchmark targeted NE -> EN retrieval improvements
+4. Add answer completeness and factual-fidelity evaluation and checkpoint V2
 ```
 
-The official production benchmark remains:
+Primary commits:
 
 ```text
-data/evaluation/rag_runs/production_rag_v2_interactions.jsonl
+f44c4be — Expand insufficient evidence benchmark
+1d091e0 — Add semantic judge hard cases
+d6fa4e8 — Benchmark NE to EN retrieval improvements
+1e7619d — Add answer quality evaluation checkpoint
 ```
 
-A new hosted benchmark should be run when a production component affecting answers is deliberately changed and needs comparison against this baseline.
+No experimental retrieval strategy was promoted to production during this cycle.
+
+The official 30-question production benchmark therefore remains the production baseline.
 
 ---
 
-# Previous Human Semantic Evaluation Checkpoint
+# Latest Cycle Milestone 1 — Partial and Mixed Evidence Benchmark
 
-The preceding four-milestone cycle established claim-level semantic evaluation.
-
-Completed milestones were:
-
-1. claim-level citation alignment
-2. semantic dataset with exact evidence
-3. stratified human semantic-review subset
-4. human semantic citation evaluation
-
-Key implementation:
+Commit:
 
 ```text
-src/evaluation/claim_citation_evaluator.py
-src/evaluation/build_semantic_evaluation_dataset.py
-src/evaluation/build_semantic_review_subset.py
-src/evaluation/semantic_review.py
+f44c4be — Expand insufficient evidence benchmark
 ```
 
-Primary outputs:
+The original 16-question benchmark remains unchanged.
+
+New dataset:
 
 ```text
-data/evaluation/semantic/production_rag_v2_claims.jsonl
-data/evaluation/semantic/production_rag_v2_human_review_v1.jsonl
-data/evaluation/semantic/production_rag_v2_human_review_v1_labeled.jsonl
+data/evaluation/insufficient_evidence_partial_mixed_v1.jsonl
 ```
 
-Semantic dataset:
+Persisted hosted output:
 
 ```text
-Questions:              30
-Claims:                290
-Cited claims:          252
-Citation assignments: 305
+data/evaluation/rag_runs/insufficient_evidence_partial_mixed_v1.jsonl
 ```
 
-Human review subset:
+Human review:
 
 ```text
-48 claims
-12 per language pair
+data/evaluation/rag_runs/insufficient_evidence_partial_mixed_v1_response_review.jsonl
 ```
 
-Strata per language pair:
+Extension size:
 
 ```text
-2 multi-citation
-3 single-citation numeric
-5 single-citation non-numeric
-1 uncited numeric
-1 uncited non-numeric
+8
 ```
 
-Sampling is deterministic.
-
-The subset is deliberately stratified.
-
-It is not a simple random or population-proportional sample of all 290 claims.
-
-Therefore human semantic rates are diagnostic rates for the reviewed sample rather than unbiased population estimates.
-
----
-
-# Human Semantic Review Results
-
-| Slice | N | Done | Full | Any Support | Unsupported | Required Citation Coverage | Individual Any Support |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| EN -> EN | 12 | 1.000 | 0.900 | 1.000 | 0.000 | 1.000 | 1.000 |
-| NE -> NE | 12 | 1.000 | 0.900 | 1.000 | 0.000 | 1.000 | 1.000 |
-| EN -> NE | 12 | 1.000 | 1.000 | 1.000 | 0.000 | 1.000 | 0.917 |
-| NE -> EN | 12 | 1.000 | 1.000 | 1.000 | 0.000 | 1.000 | 1.000 |
-| **Overall** | **48** | **1.000** | **0.950** | **1.000** | **0.000** | **1.000** | **0.979** |
-
-Additional counts:
+Case types:
 
 ```text
-Reviewed claims: 48/48
-
-Supported factual claims:            38
-Partially supported factual claims:   2
-Unsupported factual claims:           0
-Not-a-factual-claim labels:            8
-Semantic needs-review claims:          0
-
-Citation requirement unclear:          0
-Unnecessary citation rate:         0.000
+4 partial_evidence
+4 mixed_supported_unsupported
 ```
 
-Individual evidence:
+Language allocation:
 
 ```text
-Supported:           44
-Partially supported:  3
-Unsupported:          1
-Needs review:         0
-
-Full support rate:              0.917
-At least partial support rate:  0.979
-Unsupported rate:               0.021
+2 EN -> EN
+2 NE -> NE
+2 EN -> NE
+2 NE -> EN
 ```
 
----
+All extension cases use:
 
-# Semantic Failure Modes Identified
+```text
+expected_behavior = partial
+```
 
-Human review identified several failure modes that structural citation validity cannot detect.
+The evaluator now distinguishes:
 
-## Numerical mismatch
+```text
+answer
+partial
+withhold
+```
 
-A generated claim reported:
+For partial-evidence cases, structural acceptance is expected so the supported portion remains available.
+
+Human review separately determines whether unsupported portions are safely limited.
+
+## Structural Results
+
+| Slice | N | Decision | Partial Accept | False Accept | False Withhold |
+|---|---:|---:|---:|---:|---:|
+| EN -> EN | 2 | 1.000 | 1.000 | 0.000 | 0.000 |
+| NE -> NE | 2 | 1.000 | 1.000 | 0.000 | 0.000 |
+| EN -> NE | 2 | 1.000 | 1.000 | 0.000 | 0.000 |
+| NE -> EN | 2 | 1.000 | 1.000 | 0.000 | 0.000 |
+| **Overall** | **8** | **1.000** | **1.000** | **0.000** | **0.000** |
+
+## Human Response Results
+
+| Slice | N | Done | Behavior Accuracy | Partial Success | Unsafe |
+|---|---:|---:|---:|---:|---:|
+| EN -> EN | 2 | 1.000 | 1.000 | 1.000 | 0.000 |
+| NE -> NE | 2 | 1.000 | 1.000 | 1.000 | 0.000 |
+| EN -> NE | 2 | 1.000 | 1.000 | 1.000 | 0.000 |
+| NE -> EN | 2 | 1.000 | 1.000 | 1.000 | 0.000 |
+| **Overall** | **8** | **1.000** | **1.000** | **1.000** | **0.000** |
+
+The tested partial and mixed-evidence responses successfully preserved the supported answer portion while limiting unsupported material.
+
+One generated partial answer contained a localized numerical error:
+
+```text
+ie_pm_ne_ne_002
+```
+
+Generated value:
 
 ```text
 33.8%
 ```
 
-for institutional-school enrollment.
-
-The cited evidence contained:
+Source value:
 
 ```text
 33.6%
 ```
 
-The claim was labeled:
-
-```text
-partially_supported
-```
-
-This demonstrates the need for explicit numerical fidelity evaluation.
+This error was intentionally carried forward into the later factual-fidelity evaluation.
 
 ---
 
-## Truncated evidence
+# Latest Cycle Milestone 2 — Hard Semantic-Judge Challenge Set
 
-A compound claim included both:
-
-* an out-of-school indicator
-* a reading-proficiency statement
-
-The cited passage established the first but was truncated while beginning the second.
-
-The result was:
+Commit:
 
 ```text
-partially_supported
+1d091e0 — Add semantic judge hard cases
 ```
 
-This demonstrates that relevant retrieval does not guarantee that a selected chunk contains the complete evidence needed for a compound answer.
+Human challenge reference:
+
+```text
+data/evaluation/semantic/semantic_judge_hard_cases_v1.jsonl
+```
+
+Automated judge output:
+
+```text
+data/evaluation/semantic/semantic_judge_hard_cases_v1_judge.jsonl
+```
+
+Reference configuration:
+
+```text
+semantic-judge-hard-cases-v1
+```
+
+Judge configuration:
+
+```text
+semantic-judge-hard-cases-v1-judge
+```
+
+Challenge claims:
+
+```text
+12
+```
+
+Allocation:
+
+```text
+3 per language pair
+```
+
+Hard classes:
+
+```text
+4 unsupported
+4 needs_review
+4 citation-requirement unclear
+```
+
+Overall challenge agreement:
+
+```text
+Semantic exact                    = 0.667
+Citation-requirement exact        = 0.667
+Individual-evidence exact         = 0.667
+```
+
+Hard-class behavior:
+
+```text
+unsupported:
+    semantic exact                = 4/4
+    citation requirement exact    = 4/4
+    individual evidence exact     = 4/4
+
+needs_review:
+    semantic exact                = 0/4
+    citation requirement exact    = 4/4
+    individual evidence exact     = 0/4
+
+citation-requirement unclear:
+    semantic exact                = 4/4
+    citation requirement exact    = 0/4
+    individual evidence exact     = 4/4
+```
+
+Observed ambiguity pattern:
+
+```text
+human needs_review
+    -> automated judge partially_supported
+
+human citation requirement unclear
+    -> automated judge required
+```
+
+The pattern occurred across all four language pairs.
+
+Interpretation:
+
+The automated semantic judge handles clear hard negatives correctly but is over-decisive when the human reference intentionally represents ambiguity.
+
+Human labels remain authoritative.
+
+The semantic judge remains evaluation-only.
 
 ---
 
-## Joint support across multiple citations
+# Latest Cycle Milestone 3 — Targeted NE -> EN Retrieval Experiments
 
-A health-institution claim combined:
-
-* a primary-health-centre count
-* a statement that centres were being upgraded to hospitals
-
-Different passages established different portions.
-
-The joint claim was:
+Commit:
 
 ```text
-supported
+d6fa4e8 — Benchmark NE to EN retrieval improvements
 ```
 
-while individual citations could be only:
+Persisted result artifact:
 
 ```text
-partially_supported
+data/evaluation/retrieval_runs/ne_en_targeted_retrieval_v1.json
 ```
 
-This is why joint claim support and individual citation support remain separate metrics.
+Evaluation slice:
+
+```text
+6 NE -> EN production benchmark questions
+```
+
+Production baseline:
+
+```text
+original Nepali query
+    -> English dense_contextual retrieval
+```
+
+Controlled experimental path:
+
+```text
+manually controlled English counterpart
+    -> English dense_contextual top 100
+    + English BM25 top 100
+    -> RRF
+    -> final top 20
+    -> BGE reranking using original Nepali query
+```
+
+The controlled English counterparts are evaluation controls only.
+
+No automatic translation component has been implemented or validated.
+
+No production query translation was introduced.
 
 ---
 
-## Individual over-citation
+# NE -> EN Persistent Failure
 
-One vaccination claim was established by one cited passage.
-
-A second cited passage contained related vaccination statistics but did not establish the exact generated proposition.
-
-Result:
+The persistent production failure investigated was:
 
 ```text
-Joint claim: supported
-One citation: supported
-One citation: unsupported
+ne_en_005
 ```
 
-This is a citation-efficiency issue rather than an unsupported-answer issue.
-
----
-
-## OCR-corrupted evidence
-
-One Nepali evidence passage rendered a male percentage incorrectly due to OCR corruption while another cited passage contained the correct values.
-
-The answer remained jointly supported, but the corrupted evidence assignment was only:
+Question:
 
 ```text
-partially_supported
+आर्थिक सर्वेक्षणले नेपालको आर्थिक वृद्धिबारे के जानकारी दिएको छ?
 ```
 
-OCR quality therefore remains an evidence-quality concern even when answer-level semantics remain correct.
-
----
-
-# Combined Citation Parser Correction
-
-The original claim-level citation parser recognized:
+Gold passage:
 
 ```text
-[E1]
+332cdfc6-3b19-564d-ac21-64a6fae52238
 ```
 
-and:
+Document:
 
 ```text
-[E1], [E2]
+economic_survey_2023_24_en
 ```
 
-but originally failed to expand combined groups such as:
+Gold pages:
 
 ```text
-[E1, E2]
+314-315
 ```
 
-The parser was corrected to support:
+The passage is table-heavy and contains information around:
 
 ```text
-[E1]
-[E1], [E2]
-[E1, E2]
-[E1, E2, E3]
-```
-
-The corrected parser:
-
-* expands all evidence IDs in a group
-* preserves first-appearance order
-* deduplicates repeated evidence IDs
-* removes the complete citation expression when producing cleaned claim text
-
-Full benchmark inspection found seven generated claims using combined citation syntax.
-
-After correction:
-
-```text
-Claims:
-290 -> 290
-
-Cited claims:
-245 -> 252
-
-Citation assignments:
-291 -> 305
-```
-
-The correction changed citation structure, not claim segmentation.
-
-Relevant commit:
-
-```text
-984710e — Fix multilingual claim extraction artifacts
+Gross Domestic Product (GDP)
+Annual Growth Rate of GDP by Economic Activities
 ```
 
 ---
 
-# Official Production RAG Benchmark
+# NE -> EN Translation Diagnostic
 
-Official persisted benchmark:
-
-```text
-data/evaluation/rag_runs/production_rag_v2_interactions.jsonl
-```
-
-Run configuration:
+Primary gold ranks:
 
 ```text
-production-rag-v2-interactions
+Original Nepali contextual dense      >100
+Controlled English contextual dense     85
 ```
 
-Questions:
+Translation alone therefore did not recover the primary evidence inside the production candidate pool.
+
+---
+
+# NE -> EN Gold-Document Oracle Diagnostic
+
+Gold-document restriction produced:
+
+```text
+ne_en_005 normal retrieval             >100
+ne_en_005 gold-document-only retrieval >100
+```
+
+Therefore cross-document competition was not the main cause.
+
+The retrieval weakness exists inside the correct Economic Survey document.
+
+---
+
+# Raw vs Contextual Representation Diagnostic
+
+Within the correct document, depth 300:
+
+```text
+Nepali query:
+    raw dense                  = 124
+    dense_contextual           = >300
+
+Controlled English query:
+    raw dense                  = 36
+    dense_contextual           = 80
+```
+
+For this table-heavy passage, the current contextual representation hurts retrieval substantially.
+
+Even the strongest simple raw-dense result still remained outside the production top-20 candidate pool.
+
+---
+
+# Generic Query Expansion Diagnostic
+
+Generic GDP-related reformulations were tested.
+
+Representative results:
+
+```text
+generic GDP query:
+    raw dense global rank          = 58
+    contextual global rank         = 145
+
+GDP annual-growth query:
+    raw dense global rank          = 64
+    contextual global rank         = 150
+
+oracle-like table-title query:
+    raw dense global rank          = 11
+    contextual global rank         = 50
+```
+
+Generic query expansion did not solve the problem.
+
+Only an oracle-like query containing vocabulary close to the actual table title moved the raw passage into global top 20.
+
+Therefore a deployable query rewriter should not simply guess answer-specific table vocabulary.
+
+---
+
+# Table-Aware Representation Diagnostic
+
+Three gold-passage representations were tested:
+
+```text
+1. raw
+2. caption moved to front
+3. structured metadata:
+   Document: Economic Survey 2023/24
+   Table: Annual Growth Rate of GDP by Economic Activities
+   Content:
+   <raw table passage>
+```
+
+Estimated global raw-dense ranks:
+
+```text
+Nepali query:
+    raw                         = 182
+    caption front               = 208
+    structured table           = 29
+
+Controlled English query:
+    raw                         = 71
+    caption front               = 72
+    structured table           = 7
+```
+
+Merely moving the table caption to the front was not helpful.
+
+Explicit labeled table structure substantially improved semantic representation.
+
+However, the Nepali query still produced approximately:
+
+```text
+rank 29
+```
+
+which remains outside production candidate depth 20.
+
+This is a promising future representation experiment, but no index backfill was performed.
+
+---
+
+# Translated English Hybrid Diagnostic
+
+Using the controlled English query allows lexical BM25 retrieval against the English corpus.
+
+For `ne_en_005`:
+
+```text
+controlled English contextual dense rank = 85
+controlled English BM25 rank             = 46
+```
+
+At deeper component retrieval, hybrid RRF recovered the gold passage.
+
+Candidate-depth diagnostic:
+
+```text
+Component depth 60:
+    final top-20 gold rank = absent
+
+Component depth 100:
+    final top-20 gold rank = 13
+
+Component depth 160:
+    final top-20 gold rank = 14
+
+Component depth 200:
+    final top-20 gold rank = 15
+
+Component depth 300:
+    final top-20 gold rank = 19
+
+Component depth 400:
+    final top-20 gold rank = absent
+```
+
+RRF behavior was not monotonic with increasing component depth.
+
+Depth 100 was the shallowest tested component depth that recovered the gold passage inside the final top-20 pool.
+
+---
+
+# Six-Question NE -> EN First-Stage Benchmark
+
+Primary-evidence ranks:
+
+| Question | Production | Controlled English | Translated Hybrid | Dual Route |
+|---|---:|---:|---:|---:|
+| ne_en_001 | 5 | 1 | 7 | 5 |
+| ne_en_002 | 2 | 2 | 1 | 1 |
+| ne_en_003 | 2 | 5 | 6 | 3 |
+| ne_en_004 | 1 | 2 | 1 | 1 |
+| ne_en_005 | >100 | 85 | 13 | >20 |
+| ne_en_006 | 1 | 1 | 1 | 1 |
+
+First-stage metrics at @20:
+
+```text
+production:
+    Hit                         = 0.833
+    MRR                         = 0.533
+    Recall                      = 0.778
+
+controlled English:
+    Hit                         = 0.833
+    MRR                         = 0.533
+    Recall                      = 0.833
+
+translated hybrid:
+    Hit                         = 1.000
+    MRR                         = 0.564
+    Recall                      = 1.000
+
+dual-route RRF:
+    Hit                         = 0.833
+    MRR                         = 0.589
+    Recall                      = 0.833
+```
+
+Translated hybrid was the first tested candidate-generation strategy that recovered every primary passage inside the final top-20 candidate pool.
+
+---
+
+# NE -> EN BGE Reranker Benchmark
+
+Both candidate pools were reranked using the **original Nepali user query**.
+
+This keeps the BGE query condition identical and isolates candidate-generation quality.
+
+Primary-rank movement:
+
+| Question | Production First | Production BGE | Translated First | Translated BGE |
+|---|---:|---:|---:|---:|
+| ne_en_001 | 5 | 1 | 7 | 1 |
+| ne_en_002 | 2 | 1 | 1 | 1 |
+| ne_en_003 | 2 | 6 | 6 | 5 |
+| ne_en_004 | 1 | 1 | 1 | 1 |
+| ne_en_005 | >20 | >20 | 13 | 6 |
+| ne_en_006 | 1 | 1 | 1 | 2 |
+
+At @5:
+
+```text
+production BGE:
+    Hit                         = 0.667
+    MRR                         = 0.667
+    Recall                      = 0.722
+
+translated-hybrid BGE:
+    Hit                         = 0.833
+    MRR                         = 0.617
+    Recall                      = 0.833
+```
+
+At @10:
+
+```text
+production BGE:
+    Hit                         = 0.833
+    MRR                         = 0.694
+    Recall                      = 0.778
+
+translated-hybrid BGE:
+    Hit                         = 1.000
+    MRR                         = 0.644
+    Recall                      = 1.000
+```
+
+At @20:
+
+```text
+production BGE:
+    Hit                         = 0.833
+    MRR                         = 0.694
+    Recall                      = 0.778
+
+translated-hybrid BGE:
+    Hit                         = 1.000
+    MRR                         = 0.644
+    Recall                      = 1.000
+```
+
+Important persistent case:
+
+```text
+ne_en_005
+```
+
+moved from:
+
+```text
+production first stage   >20
+production BGE           >20
+```
+
+to:
+
+```text
+translated first stage    13
+translated BGE              6
+```
+
+This confirms that candidate generation was the limiting factor.
+
+BGE could meaningfully promote the passage once it was available in the candidate pool.
+
+---
+
+# NE -> EN Production Decision
+
+The translated-hybrid experiment showed a real measured improvement.
+
+However, it depends on:
+
+```text
+manually controlled English query counterparts
+```
+
+It does not yet establish that an automatic production translation/reformulation mechanism would provide the same benefit.
+
+Unmeasured factors include:
+
+* automatic translation accuracy
+* translation latency
+* translation cost
+* query meaning preservation
+* behavior on all 30 benchmark questions
+* regressions on same-language retrieval
+* production failure modes
+
+Therefore:
+
+```text
+production retrieval changed = False
+```
+
+The experiment remains evaluation-only.
+
+No retrieval backfill or production route change was performed.
+
+---
+
+# Latest Cycle Milestone 4 — Answer Completeness and Factual Fidelity
+
+Commit:
+
+```text
+1e7619d — Add answer quality evaluation checkpoint
+```
+
+Implementation:
+
+```text
+src/evaluation/answer_quality_review.py
+```
+
+Tests:
+
+```text
+tests/test_answer_quality_review.py
+```
+
+Human review artifact:
+
+```text
+data/evaluation/rag_runs/production_rag_v2_answer_quality_review_v1.jsonl
+```
+
+Reviewed responses:
 
 ```text
 30/30
 ```
 
-Language slices:
+Needs-review responses:
 
 ```text
-EN -> EN: 12
-NE -> NE:  6
-EN -> NE:  6
-NE -> EN:  6
+0
 ```
 
-Final deterministic structural results:
-
-| Slice | N | Accept | SelHit | SelRec | CitHit | CitPrec | CitRec | Valid |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| EN -> EN | 12 | 1.000 | 0.833 | 0.792 | 0.833 | 0.533 | 0.792 | 1.000 |
-| NE -> NE | 6 | 1.000 | 1.000 | 1.000 | 1.000 | 0.458 | 0.917 | 1.000 |
-| EN -> NE | 6 | 1.000 | 0.833 | 0.861 | 0.833 | 0.347 | 0.778 | 1.000 |
-| NE -> EN | 6 | 1.000 | 0.667 | 0.722 | 0.667 | 0.539 | 0.722 | 1.000 |
-| **Overall** | **30** | **1.000** | **0.833** | **0.833** | **0.833** | **0.482** | **0.800** | **1.000** |
-
-Metric meanings:
+The review uses exact original Qdrant passages for both:
 
 ```text
-Accept
-    accepted-answer rate
-
-SelHit
-    selected context contains at least one primary annotated passage
-
-SelRec
-    recall of annotated relevant passages in selected context
-
-CitHit
-    cited evidence contains at least one primary annotated passage
-
-CitPrec
-    fraction of cited passage identities appearing in the manually
-    annotated retrieval-relevance set
-
-CitRec
-    recall of annotated relevant passages among cited evidence
-
-Valid
-    fraction of generated evidence identifiers that resolve to selected
-    evidence
+gold reference evidence
+selected RAG evidence
 ```
 
-These are structural and retrieval-identity metrics.
-
-They must not be interpreted as direct semantic factuality metrics.
-
----
-
-# Structural vs Semantic Citation Quality
-
-Production structural benchmark:
+The evaluation keeps two dimensions separate:
 
 ```text
-CitPrec = 0.482
-```
-
-This does **not** mean:
-
-```text
-48.2% factual accuracy
-```
-
-or:
-
-```text
-48.2% semantically correct citations
-```
-
-It means that cited passage identities overlapped the manually annotated retrieval-relevance set at that macro-averaged rate.
-
-Human semantic review found:
-
-```text
-Fully supported factual claims = 0.950
-At least partial support        = 1.000
-Unsupported                     = 0.000
-```
-
-Individual citations:
-
-```text
-Full support                    = 0.917
-At least partial support        = 0.979
-Unsupported                     = 0.021
-```
-
-Therefore retrieval-gold overlap and semantic support remain separate evaluation dimensions.
-
-Possible reasons a cited passage falls outside the annotated relevant set include:
-
-* legitimate supplementary evidence
-* overlapping chunks
-* incomplete retrieval annotations
-* multiple passages supporting the same proposition
-* over-citation
-* genuinely weak citation selection
-
-Human semantic evaluation is the appropriate layer for distinguishing those cases.
-
----
-
-# Corpus
-
-Current development corpus contains six official Nepal government documents:
-
-1. `constitution_nepal_current_en`
-2. `public_health_service_act_2075_en`
-3. `compulsory_free_education_act_2075_en`
-4. `economic_survey_2023_24_en`
-5. `economic_survey_2081_82_ne`
-6. `budget_speech_2025_26_en`
-
-Total indexed chunks:
-
-```text
-2,276
-```
-
-The Nepali Economic Survey requires forced OCR.
-
-Do not rerun OCR unless corpus changes require it.
-
----
-
-# Chunking
-
-Implementation:
-
-```text
-src/chunking/chunk_documents.py
-```
-
-Tokenizer:
-
-```text
-intfloat/multilingual-e5-large-instruct
-```
-
-Parameters:
-
-```text
-target chunk size: approximately 400 tokens
-overlap: approximately 60 tokens
-```
-
-Original passage text is preserved.
-
-Current chunking remains a flat overlapping baseline.
-
-Parent/child structure-aware chunking has not been promoted to production.
-
----
-
-# Embeddings and Qdrant
-
-Embedding model:
-
-```text
-intfloat/multilingual-e5-large-instruct
-```
-
-Dimension:
-
-```text
-1024
-```
-
-Query instruction:
-
-```text
-Retrieve relevant official Nepal government passages that answer the user's question.
-```
-
-Query representation:
-
-```text
-Instruct: <instruction>
-Query: <query>
-```
-
-Qdrant collection:
-
-```text
-nepal_gov_documents
-```
-
-Stored representations:
-
-```text
-dense
-dense_contextual
-bm25
-```
-
-Production semantic retrieval uses:
-
-```text
-dense_contextual
-```
-
-Raw:
-
-```text
-dense
-```
-
-vectors remain stored for baseline comparison and diagnostics.
-
-Original:
-
-```text
-chunk_text
-```
-
-remains canonical evidence.
-
-All:
-
-```text
-2,276
-```
-
-points have contextual vectors.
-
-Do not rerun contextual-vector backfill unless required by a corpus or representation change.
-
----
-
-# Production Retrieval
-
-## Same-language retrieval
-
-English -> English:
-
-```text
-dense_contextual + BM25 -> RRF
-```
-
-Nepali -> Nepali:
-
-```text
-dense_contextual + BM25 -> RRF
-```
-
-## Cross-language retrieval
-
-English -> Nepali:
-
-```text
-dense_contextual only
-```
-
-Nepali -> English:
-
-```text
-dense_contextual only
-```
-
-BM25 is intentionally skipped when query language and target evidence language differ.
-
-Production candidate depth:
-
-```text
-20
+completeness
+factual fidelity
 ```
 
 ---
 
-# Retrieval Evaluation
+# Answer Completeness Labels
 
-Benchmark:
-
-```text
-data/evaluation/retrieval_questions.jsonl
-```
-
-Questions:
+Supported labels:
 
 ```text
-30
-```
-
-First-stage baseline:
-
-| Cutoff | Hit | MRR | Recall |
-|---|---:|---:|---:|
-| @5 | 0.767 | 0.505 | 0.686 |
-| @10 | 0.900 | 0.524 | 0.856 |
-| @20 | 0.900 | 0.524 | 0.886 |
-
-Persistent top-20 primary-evidence misses:
-
-```text
-en_en_011
-en_ne_002
-ne_en_005
-```
-
-Evidence that never enters the top-20 candidate pool cannot be recovered by reranking or generation.
-
-NE -> EN remains the weakest production language direction in the existing structural benchmark.
-
----
-
-# Production Reranking
-
-Implementation:
-
-```text
-src/reranking/hf_bge_reranker.py
-```
-
-Model:
-
-```text
-BAAI/bge-reranker-v2-m3
-```
-
-Hosted through Hugging Face TEI.
-
-Production representation:
-
-```text
-Document: <title>
-
-<original chunk_text>
-```
-
-Candidate count:
-
-```text
-20
-```
-
-Title-aware reranking benchmark:
-
-| Cutoff | Hit | MRR | Recall |
-|---|---:|---:|---:|
-| @5 | 0.833 | 0.697 | 0.833 |
-| @10 | 0.900 | 0.706 | 0.869 |
-| @20 | 0.900 | 0.706 | 0.886 |
-
----
-
-# Production Context Selection
-
-Production strategy:
-
-```text
-Fixed top-5
-```
-
-Evaluation:
-
-| Strategy | Hit | MRR | Recall | Avg passages | Avg tokens | AdjPairs |
-|---|---:|---:|---:|---:|---:|---:|
-| Top-3 | 0.800 | 0.689 | 0.761 | 3.00 | 1011.1 | 0.40 |
-| Top-5 | 0.833 | 0.697 | 0.833 | 5.00 | 1703.9 | 1.07 |
-| Top-8 | 0.867 | 0.703 | 0.853 | 8.00 | 2669.1 | 2.23 |
-| Budget 1400 | 0.800 | 0.689 | 0.761 | 3.63 | 1214.9 | 0.63 |
-| Budget 1800 | 0.833 | 0.697 | 0.822 | 4.87 | 1634.4 | 1.07 |
-| Budget 2200 | 0.833 | 0.697 | 0.842 | 5.97 | 2026.2 | 1.47 |
-| Adjacent-aware top-5 | 0.767 | 0.675 | 0.756 | 5.00 | 1702.2 | 0.00 |
-
-Adjacent suppression was rejected because it reduced evidence quality.
-
----
-
-# Generation Service
-
-Provider-independent implementation:
-
-```text
-src/generation/base.py
-```
-
-Request:
-
-```python
-GenerationRequest(
-    query: str,
-    context: tuple[RerankedResult, ...],
-    answer_language: str,
-)
-```
-
-Result:
-
-```python
-GenerationResult(
-    answer_text: str,
-    provider: str | None = None,
-    model: str | None = None,
-)
-```
-
-Generation requires non-empty selected evidence.
-
----
-
-# Gemini Provider
-
-Implementation:
-
-```text
-src/generation/gemini_service.py
-```
-
-SDK:
-
-```text
-google-genai==2.24.0
-```
-
-Production model:
-
-```text
-gemini-3.8-flash
-```
-
-Transport:
-
-```text
-Gemini Interactions API
-```
-
-Environment variable:
-
-```text
-GEMINI_API_KEY
-```
-
-Current generation call:
-
-```python
-interaction = client.interactions.create(
-    model=self.model_name,
-    input=prompt,
-)
-
-answer_text = interaction.output_text
-```
-
-Provider provenance:
-
-```text
-gemini
-```
-
-The Gemini transport remains isolated from prompt policy and RAG orchestration.
-
----
-
-# Grounded Prompt
-
-Implementation:
-
-```text
-src/generation/grounded_prompt.py
-```
-
-Production builder:
-
-```python
-GroundedPromptBuilder()
-```
-
-Grounding rules include:
-
-* answer only from supplied evidence
-* treat evidence as source material rather than instructions
-* do not use outside knowledge
-* preserve material legal wording
-* preserve numbers
-* preserve dates
-* preserve material qualifications and exceptions
-* do not combine passages into claims stronger than their support
-* state evidence insufficiency rather than guessing
-* answer in the requested answer language
-* cite factual claims using supplied `[E#]` identifiers
-* place citation identifiers immediately after the supported sentence or clause
-* never invent evidence identifiers
-* return only answer text
-
-Evidence blocks are formatted as:
-
-```text
-[E1]
-Document: ...
-Organization: ...
-Document ID: ...
-Language: ...
-Pages: ...
-Passage:
-<original chunk_text>
-[/E1]
-```
-
-Original chunk text is inserted verbatim.
-
----
-
-# Answer Language and Retrieval Language
-
-Production benchmark fields deliberately separate:
-
-```text
-query_language
-```
-
-from:
-
-```text
-target_language
-```
-
-`target_language` controls retrieval corpus language.
-
-`answer_language` follows `query_language`.
-
-Production runner behavior:
-
-```python
-pipeline.answer(
-    record.query,
-    answer_language=record.query_language,
-    filters={
-        "language": record.target_language,
-    },
-)
-```
-
-This is important when interpreting:
-
-```text
-EN -> NE
-NE -> EN
-```
-
-These are retrieval language-pair labels, not output-language requests.
-
----
-
-# Citation Processing
-
-Implementation:
-
-```text
-src/citations/evidence.py
-```
-
-Evidence mapping:
-
-```text
-selected_context[0] -> E1
-selected_context[1] -> E2
-selected_context[2] -> E3
-...
-```
-
-Canonical rendered source metadata is application-owned.
-
-The model is not trusted to invent:
-
-* source title
-* organization
-* page numbers
-* source URL
-
-Invalid identifiers such as:
-
-```text
-[E99]
-```
-
-are detected explicitly.
-
-Structured citation results are retained for evaluation.
-
----
-
-# Evidence Guard
-
-Implementation:
-
-```text
-src/generation/evidence_guard.py
-```
-
-Structural withholding reasons:
-
-```python
-EvidenceGuardReason.NO_SELECTED_EVIDENCE
-EvidenceGuardReason.MISSING_CITATIONS
-EvidenceGuardReason.INVALID_CITATIONS
-```
-
-Current structural policy:
-
-```text
-No selected evidence
-    -> skip generation and withhold
-
-Generated answer with no valid citations
-    -> withhold
-
-Generated answer with any invalid citation IDs
-    -> withhold
-
-Selected evidence + structurally valid citations
-    -> structurally accept
-```
-
-No arbitrary retrieval or reranking score threshold is used.
-
-The evidence guard intentionally does **not** perform semantic entailment classification.
-
-The response-level abstention milestone established that:
-
-```text
-structurally accepted
-```
-
-and:
-
-```text
-semantically substantive
-```
-
-are not equivalent concepts.
-
----
-
-# RAG Orchestration
-
-Implementation:
-
-```text
-src/rag/pipeline.py
-```
-
-Production constructor:
-
-```python
-build_production_rag_pipeline()
-```
-
-Current result structure includes:
-
-```python
-RAGResult(
-    answer_text,
-    accepted,
-    reason,
-    sources,
-    selected_context,
-    citation_result,
-    provider,
-    model,
-)
-```
-
-Structured:
-
-```text
-citation_result
-```
-
-is deliberately preserved so evaluation can inspect evidence references without reparsing rendered source output.
-
----
-
-# Current Production Architecture
-
-```text
-User Query
-   |
-   v
-Query Language Detection
-   |
-   +----------------------------------+
-   |                                  |
-Same-language                    Cross-language
-   |                                  |
-   v                                  v
-Contextual E5                     Contextual E5
-   +                                  |
-BM25                                  |
-   |                                  |
-   v                                  |
-RRF                                   |
-   +------------------+---------------+
-                      |
-                      v
-                Top-20 Candidates
-                      |
-                      v
-        Title-Aware BGE Reranker
-                      |
-                      v
-                 Fixed Top-5
-                      |
-           +----------+----------+
-           |                     |
-        Empty                 Evidence
-           |                     |
-           v                     v
-      Evidence Guard       GenerationRequest
-                                 |
-                                 v
-                        GroundedPromptBuilder
-                                 |
-                                 v
-                       GeminiGenerationService
-                                 |
-                                 v
-                       Gemini Interactions API
-                                 |
-                                 v
-                        gemini-3.8-flash
-                                 |
-                                 v
-                         GenerationResult
-                                 |
-                                 v
-                        Citation Processing
-                                 |
-                                 v
-                          Evidence Guard
-                                 |
-                                 v
-                              RAGResult
-```
-
----
-
-# Current Evaluation Architecture
-
-```text
-                    Persisted Production RAG Output
-                               |
-           +-------------------+-------------------+
-           |                                       |
-           v                                       v
- Structural RAG Evaluation                 Claim Extraction
-                                                   |
-                                                   v
-                                      Claim/Citation Alignment
-                                                   |
-                                                   v
-                                     Exact Evidence Materialization
-                                                   |
-                                                   v
-                                        Semantic Claim Dataset
-                                                   |
-                                                   v
-                                     Stratified Human Reference
-                                                   |
-                                  +----------------+---------------+
-                                  |                                |
-                                  v                                v
-                         Human Semantic Review            Automated Judge
-                                  |                                |
-                                  +---------------+----------------+
-                                                  |
-                                                  v
-                                       Human/Judge Agreement
-
-
-        Dedicated Insufficient-Evidence Questions
-                         |
-                         v
-                Production RAG Pipeline
-                         |
-                         v
-              Structural Guard Evaluation
-                         |
-                         v
-              Persisted Application Output
-                         |
-                         v
-              Human Response-Level Review
-
-
-All persisted evaluation layers
-             |
-             v
-Production Quality Checkpoint
-```
-
----
-
-# Consolidated Evaluation Interpretation
-
-The current evaluation layers answer different questions.
-
-## Retrieval evaluation
-
-Question:
-
-> Did the retrieval system surface manually annotated relevant evidence?
-
-Primary metrics:
-
-```text
-Hit
-MRR
-Recall
-```
-
----
-
-## Production structural RAG evaluation
-
-Question:
-
-> Did selected and cited passage identities overlap the annotated relevant passages, and were citation references structurally valid?
-
-Primary metrics:
-
-```text
-SelHit
-SelRec
-CitHit
-CitPrec
-CitRec
-Valid
-```
-
----
-
-## Human semantic citation review
-
-Question:
-
-> Does the actual cited evidence semantically establish the generated claim?
-
-Primary metrics:
-
-```text
-fully supported
-at least partially supported
-unsupported
-required citation coverage
-individual evidence support
-```
-
----
-
-## Automated semantic judge evaluation
-
-Question:
-
-> How closely does the automated evaluator reproduce human semantic labels?
-
-Primary metrics:
-
-```text
-semantic exact agreement
-citation-requirement agreement
-individual-evidence agreement
-```
-
----
-
-## Structural insufficient-evidence evaluation
-
-Question:
-
-> Did the structural evidence guard produce the expected accepted/withheld state?
-
-Primary metrics:
-
-```text
-decision accuracy
-withholding success
-false accept
-false withhold
-```
-
----
-
-## Human response-level evaluation
-
-Question:
-
-> What did the user-visible answer actually do?
-
-Primary labels:
-
-```text
-substantive_answer
-abstained
-partial_answer_with_limitation
+complete
+mostly_complete
+incomplete
 needs_review
 ```
 
-This layer is required because structural guard state alone does not completely characterize generated semantic behavior.
+Interpretation:
+
+```text
+complete
+    Central answer and all material verified gold information are covered.
+
+mostly_complete
+    Central answer is present, but secondary material information is omitted.
+
+incomplete
+    Central evidence, primary answer, or another major requested component is missing.
+
+needs_review
+    Human reviewer cannot classify completeness confidently.
+```
+
+---
+
+# Factual Fidelity Labels
+
+Supported labels:
+
+```text
+fully_faithful
+minor_issue
+major_issue
+needs_review
+```
+
+Interpretation:
+
+```text
+fully_faithful
+    No material factual error or unsupported factual assertion.
+
+minor_issue
+    Localized factual imprecision that does not change the central answer.
+
+major_issue
+    Material unsupported, contradicted, or substantially incorrect answer content.
+
+needs_review
+    Fidelity cannot be classified confidently.
+```
+
+---
+
+# Human Answer-Quality Results
+
+Per language pair:
+
+| Slice | N | Done | Scored | FullComp | >=Mostly | Faithful | NoMajor | Strong | Accept |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| EN -> EN | 12 | 1.000 | 1.000 | 0.667 | 0.667 | 0.917 | 1.000 | 0.667 | 0.667 |
+| NE -> NE | 6 | 1.000 | 1.000 | 1.000 | 1.000 | 0.833 | 1.000 | 0.833 | 1.000 |
+| EN -> NE | 6 | 1.000 | 1.000 | 0.667 | 0.833 | 1.000 | 1.000 | 0.667 | 0.833 |
+| NE -> EN | 6 | 1.000 | 1.000 | 0.500 | 0.833 | 1.000 | 1.000 | 0.500 | 0.833 |
+| **Overall** | **30** | **1.000** | **1.000** | **0.700** | **0.800** | **0.933** | **1.000** | **0.667** | **0.800** |
+
+Completeness counts:
+
+```text
+complete              = 21
+mostly_complete       = 3
+incomplete            = 6
+needs_review          = 0
+```
+
+Completeness rates:
+
+```text
+Fully complete                    = 21/30 = 0.700
+At least mostly complete          = 24/30 = 0.800
+Incomplete                        =  6/30 = 0.200
+```
+
+Factual-fidelity counts:
+
+```text
+fully_faithful        = 28
+minor_issue           = 2
+major_issue           = 0
+needs_review          = 0
+```
+
+Factual-fidelity rates:
+
+```text
+Fully faithful                    = 28/30 = 0.933
+No major factual error            = 30/30 = 1.000
+Major factual issue               =  0/30 = 0.000
+```
+
+Combined quality:
+
+```text
+Strong answer                     = 20/30 = 0.667
+Acceptable answer                 = 24/30 = 0.800
+```
+
+A strong answer requires:
+
+```text
+complete
++
+fully_faithful
+```
+
+An acceptable answer allows:
+
+```text
+complete OR mostly_complete
++
+fully_faithful OR minor_issue
+```
+
+---
+
+# Important Answer-Quality Findings
+
+The new review shows that:
+
+```text
+factual correctness is stronger than answer completeness
+```
+
+No reviewed answer contained a major factual error.
+
+However:
+
+```text
+6/30
+```
+
+answers were materially incomplete.
+
+Therefore the next major quality improvement should not focus only on hallucination prevention.
+
+It should also focus on getting the correct and sufficiently complete evidence into the answer.
+
+The weakest full-completeness slice was:
+
+```text
+NE -> EN = 0.500
+```
+
+This aligns with the previously measured NE -> EN retrieval weakness.
+
+---
+
+# Numerical Fidelity Finding
+
+The answer-quality review successfully surfaced the known localized numerical mismatch:
+
+```text
+Generated:
+33.8%
+
+Evidence:
+33.6%
+```
+
+This is classified as:
+
+```text
+minor_issue
+```
+
+because it is a localized numerical error rather than a central-answer failure.
+
+The second minor factual-fidelity issue is associated with partially visible/truncated evidence around an education indicator.
+
+No major factual error was observed in the 30-question review.
+
+---
+
+# Production Quality Checkpoint V2
+
+Implementation:
+
+```text
+src/evaluation/production_quality_checkpoint_v2.py
+```
+
+Tests:
+
+```text
+tests/test_production_quality_checkpoint_v2.py
+```
+
+Artifact:
+
+```text
+data/evaluation/production_quality_checkpoint_v2.json
+```
+
+Configuration:
+
+```text
+production-quality-checkpoint-v2
+```
+
+V2 preserves:
+
+```text
+production-quality-checkpoint-v1
+```
+
+and adds the latest four-milestone cycle.
+
+The V2 checkpoint is deterministic over persisted evaluation artifacts.
+
+It performs no:
+
+* hosted generation
+* embedding
+* retrieval
+* reranking
+* OCR
+* ingestion
+* vector backfill
+
+---
+
+# Production Quality Checkpoint V2 Headline
+
+Partial/mixed evidence:
+
+```text
+Structural decision accuracy       = 1.000
+Partial-case acceptance            = 1.000
+Human behavior accuracy            = 1.000
+Partial-response success           = 1.000
+```
+
+Hard semantic-judge challenge:
+
+```text
+Semantic exact                     = 0.667
+Citation-requirement exact         = 0.667
+Individual-evidence exact          = 0.667
+```
+
+Targeted NE -> EN BGE @10:
+
+```text
+Production:
+    Hit                            = 0.833
+    Recall                         = 0.778
+
+Experimental translated hybrid:
+    Hit                            = 1.000
+    Recall                         = 1.000
+```
+
+Human answer quality:
+
+```text
+Fully complete                    = 0.700
+At least mostly complete          = 0.800
+Fully faithful                    = 0.933
+No major factual error            = 1.000
+Strong answer                     = 0.667
+Acceptable answer                 = 0.800
+```
+
+Production decision:
+
+```text
+Production retrieval changed          = False
+Hosted production rerun performed     = False
+Official production benchmark retained = True
+```
+
+---
+
+# Why the Official Production Benchmark Was Not Rerun
+
+The latest retrieval improvement was experimental only.
+
+No production retrieval component was changed.
+
+No production contextual vector representation was changed.
+
+No new query translation component was added.
+
+No production candidate depth was changed.
+
+No reranker was changed.
+
+No context-selection behavior was changed.
+
+No generation prompt or generation model was changed.
+
+Therefore a new 30-question hosted Gemini production run would not measure a new production system.
+
+The current official benchmark remains:
+
+```text
+data/evaluation/rag_runs/production_rag_v2_interactions.jsonl
+```
+
+A new production benchmark should be generated only after an actual production component is deliberately promoted.
+
+---
+
+# Current Quality Headline
+
+Official production structural benchmark:
+
+```text
+Selected primary hit              = 0.833
+Selected relevant recall          = 0.833
+Valid citation references         = 1.000
+```
+
+Human semantic claim review:
+
+```text
+Fully supported                   = 0.950
+At least partially supported      = 1.000
+Unsupported                       = 0.000
+Required citation coverage        = 1.000
+Individual full support           = 0.917
+Individual at least partial       = 0.979
+```
+
+Automated semantic judge on original human set:
+
+```text
+Semantic exact                    = 0.979
+Citation requirement             = 1.000
+Individual evidence              = 0.958
+```
+
+Automated judge on hard challenge set:
+
+```text
+Semantic exact                    = 0.667
+Citation requirement             = 0.667
+Individual evidence              = 0.667
+```
+
+Original insufficient-evidence structural benchmark:
+
+```text
+Decision accuracy                 = 0.938
+Withholding success               = 0.875
+Structural false accept           = 0.125
+Structural false withhold         = 0.000
+```
+
+Original human response behavior:
+
+```text
+Behavior accuracy                 = 1.000
+Semantic abstention success       = 1.000
+Unsafe substantive answer rate    = 0.000
+Structural/behavior agreement     = 0.938
+```
+
+Partial/mixed evidence extension:
+
+```text
+Structural decision accuracy      = 1.000
+Partial response success          = 1.000
+Unsafe answer rate                = 0.000
+```
+
+Human answer quality:
+
+```text
+Fully complete                    = 0.700
+At least mostly complete          = 0.800
+Fully faithful                    = 0.933
+No major factual error            = 1.000
+Strong answer                     = 0.667
+Acceptable answer                 = 0.800
+```
+
+---
+
+# Current Measured Strengths
+
+## 1. Citation References Are Structurally Reliable
+
+Official benchmark:
+
+```text
+Valid citation reference ratio = 1.000
+```
+
+Invalid evidence references are not silently accepted.
+
+---
+
+## 2. Claim-Level Semantic Support Is Strong
+
+Human-reviewed factual claims:
+
+```text
+At least partial support = 1.000
+```
+
+No jointly unsupported factual claim was found in the 48-claim stratified semantic sample.
+
+---
+
+## 3. Response-Level Safety Is Strong
+
+Original insufficient-evidence benchmark:
+
+```text
+Unsafe substantive answers = 0
+```
+
+Partial/mixed extension:
+
+```text
+Unsafe responses = 0
+```
+
+Human answer-quality review:
+
+```text
+Major factual errors = 0/30
+```
+
+---
+
+## 4. Partial-Evidence Behavior Is Strong
+
+All eight new partial/mixed cases produced the expected limited partial-answer behavior.
+
+```text
+Partial response success = 1.000
+```
+
+---
+
+## 5. Clear Hard Negatives Are Correctly Detected by the Automated Judge
+
+Hard challenge:
+
+```text
+unsupported cases = 4/4 correct
+```
+
+---
+
+## 6. NE -> EN Candidate Recall Can Be Improved
+
+The translated-hybrid experiment recovered:
+
+```text
+all six NE -> EN primary passages
+```
+
+inside the final top-20 candidate pool.
+
+This shows the persistent cross-lingual failures are not necessarily unsolvable with the existing corpus and reranker.
 
 ---
 
 # Current Measured Weaknesses
 
-## 1. NE -> EN retrieval
+## 1. Answer Completeness
 
-In the official production structural benchmark:
+Only:
 
 ```text
-NE -> EN SelHit = 0.667
-NE -> EN SelRec = 0.722
+70.0%
 ```
 
-This remains the weakest language direction.
+of reviewed production answers were fully complete.
 
-Candidate retrieval is the primary concern because missing top-20 evidence cannot be recovered by reranking or generation.
+Only:
+
+```text
+80.0%
+```
+
+were at least mostly complete.
+
+This is now a more important measured quality gap than major factual hallucination.
 
 ---
 
-## 2. Automated Judge Class Coverage
+## 2. NE -> EN Retrieval
 
-The automated semantic judge has strong agreement on the current human set:
-
-```text
-Semantic = 0.979
-Requirement = 1.000
-Individual = 0.958
-```
-
-but the reference set contains no human examples of:
+Official production:
 
 ```text
-unsupported
-needs_review
-unclear citation requirement
+NE -> EN selected primary hit      = 0.667
+NE -> EN selected relevant recall  = 0.722
 ```
 
-Judge reliability on those classes remains unvalidated.
+This remains the weakest production language direction.
+
+Experimental translated hybrid improves candidate recall substantially, but the translation component is not yet production-ready.
 
 ---
 
-## 3. Partial/Mixed Insufficient-Evidence Cases
+## 3. Table-Heavy Evidence Representation
 
-The 16-question insufficient-evidence dataset currently lacks:
+The current contextual passage representation can perform poorly on table-heavy Economic Survey chunks.
+
+The `ne_en_005` diagnostic showed:
 
 ```text
-partial_evidence
-mixed_supported_unsupported
+contextual representation can rank substantially worse than raw dense
 ```
 
-These cases are important because a system may need to:
+for the relevant GDP table.
 
-* answer only the supported portion
-* explicitly qualify unsupported portions
-* avoid presenting related evidence as complete evidence
+Structured table metadata appears promising.
 
 ---
 
-## 4. Structural Guard / Semantic Abstention Mismatch
+## 4. Automated Judge Ambiguity Handling
 
-One benchmark response was structurally accepted but semantically abstained.
+The automated semantic judge is too decisive for intentionally ambiguous cases.
 
-This is not currently an unsafe-answer failure.
+Observed:
 
-It is an observability distinction.
+```text
+needs_review -> partially_supported
+unclear citation requirement -> required
+```
 
-Changing the production guard purely to eliminate that metric mismatch is not justified by current evidence.
+Human review remains necessary for ambiguity-sensitive evaluation.
 
 ---
 
 ## 5. Numerical Fidelity
 
-Human review observed a specific numerical mismatch.
+At least one clear generated numerical mismatch was observed:
 
-A dedicated numerical fidelity benchmark has not yet been implemented.
+```text
+33.8% generated
+33.6% source
+```
+
+The new factual-fidelity layer now detects this explicitly.
 
 ---
 
@@ -2189,161 +1995,28 @@ A dedicated numerical fidelity benchmark has not yet been implemented.
 
 The forced-OCR Nepali Economic Survey contains occasional OCR corruption.
 
-This can reduce individual citation quality even when another citation jointly supports the answer.
+This can affect:
+
+* retrieval
+* table interpretation
+* individual citation support
+* numerical fidelity
+
+Do not assume all OCR text is clean.
 
 ---
 
 ## 7. Citation Efficiency
 
-Some answers cite passages that are related but do not individually establish the associated claim.
+Some answers cite evidence that is related but does not individually establish the associated claim.
 
-This creates over-citation or weak individual citation assignments even when the overall answer remains supported.
-
----
-
-## 8. Answer Completeness
-
-The current semantic review measures claim support.
-
-It does not yet systematically measure whether the generated answer omitted important evidence needed for a complete response.
-
----
-
-# Current Production Decisions
-
-## Retrieval
-
-Same-language:
-
-```text
-dense_contextual + BM25 -> RRF
-```
-
-Cross-language:
-
-```text
-dense_contextual only
-```
-
-## Candidate depth
-
-```text
-20
-```
-
-## Reranker
-
-```text
-BAAI/bge-reranker-v2-m3
-```
-
-Input:
-
-```text
-Document: <title>
-
-<original chunk_text>
-```
-
-## Context selection
-
-```text
-Fixed top-5
-```
-
-## Generation provider
-
-```text
-GeminiGenerationService
-```
-
-## Gemini model
-
-```text
-gemini-3.8-flash
-```
-
-## Gemini transport
-
-```text
-Interactions API
-```
-
-## Prompt
-
-```text
-GroundedPromptBuilder
-```
-
-## Citation identifiers
-
-```text
-E1, E2, E3, ...
-```
-
-Claim-level parsing additionally supports combined syntax:
-
-```text
-[E1, E2]
-```
-
-## Evidence guard
-
-Structural citation/evidence validation without arbitrary retrieval-score thresholds.
-
-## Application orchestration
-
-```text
-RAGPipeline
-```
-
-## Production benchmark
-
-```text
-data/evaluation/rag_runs/production_rag_v2_interactions.jsonl
-```
-
-## Semantic evaluation dataset
-
-```text
-data/evaluation/semantic/production_rag_v2_claims.jsonl
-```
-
-## Human semantic reference
-
-```text
-data/evaluation/semantic/production_rag_v2_human_review_v1_labeled.jsonl
-```
-
-## Automated semantic judge output
-
-```text
-data/evaluation/semantic/production_rag_v2_human_review_v1_judge.jsonl
-```
-
-## Insufficient-evidence benchmark
-
-```text
-data/evaluation/insufficient_evidence_questions.jsonl
-```
-
-## Human response behavior review
-
-```text
-data/evaluation/rag_runs/insufficient_evidence_v1_response_review.jsonl
-```
-
-## Consolidated quality checkpoint
-
-```text
-data/evaluation/production_quality_checkpoint_v1.json
-```
+Overall joint support can remain correct while individual citation quality is weaker.
 
 ---
 
 # Architecture Principles
 
-The project currently enforces the following design principles:
+The project currently follows these principles:
 
 * retrieval remains independently callable
 * reranking remains independently callable
@@ -2357,6 +2030,7 @@ The project currently enforces the following design principles:
 * original `chunk_text` remains canonical evidence
 * raw dense vectors remain preserved
 * contextual vectors remain separately preserved
+* BM25 vectors remain preserved
 * selected evidence order remains stable
 * provider SDK objects do not leak downstream
 * source provenance remains available end to end
@@ -2365,13 +2039,16 @@ The project currently enforces the following design principles:
 * human semantic labels remain distinct from automated predictions
 * human labels remain the semantic judge reference standard
 * retrieval gold overlap is not treated as semantic entailment
-* structural guard state is not treated as equivalent to semantic response behavior
+* structural guard state is not treated as equivalent to semantic answer behavior
+* answer completeness is measured separately from factual fidelity
 * experiments are not promoted without evaluation
 * expensive preprocessing is not rerun without need
 * resumable hosted evaluation avoids repeating completed calls
 * prompt hashes protect automated judge predictions from stale prompt reuse
 * persisted evaluation artifacts are preferred over unnecessary stochastic reruns
 * production changes should be driven by measured failures rather than metric cosmetics
+* manually controlled evaluation queries must not be confused with production-ready translation
+* production baselines remain immutable until a measured intervention is actually promoted
 
 ---
 
@@ -2419,19 +2096,19 @@ Deterministic RAG evaluation:
 310 passed
 ```
 
-Production RAG evaluation runner and subsequent validation:
+Production RAG runner and subsequent validation:
 
 ```text
 325 passed
 ```
 
-Claim citation evaluation and semantic dataset work:
+Claim citation and semantic dataset work:
 
 ```text
 359 passed
 ```
 
-Stratified semantic review subset:
+Stratified semantic review:
 
 ```text
 372 passed
@@ -2449,35 +2126,81 @@ Combined citation parser regression coverage:
 388 passed
 ```
 
-After insufficient-evidence benchmark:
+Original insufficient-evidence benchmark:
 
 ```text
 445 passed
 ```
 
-After human response-level abstention evaluation:
+Human response-level abstention evaluation:
 
 ```text
 458 passed
 ```
 
-After consolidated production-quality checkpoint:
+Production quality checkpoint V1:
 
 ```text
 467 passed
 ```
 
-Current validated full suite:
+After partial/mixed evidence benchmark:
 
 ```text
-467 passed in 3.93s
+504 passed
+```
+
+After hard semantic-judge challenge set:
+
+```text
+543 passed
+```
+
+After initial targeted NE -> EN retrieval tests:
+
+```text
+558 passed
+```
+
+Current validated full suite after answer-quality evaluation and checkpoint V2:
+
+```text
+604 passed in 3.35s
 ```
 
 ---
 
 # Git Milestone History
 
-## Latest evaluation cycle
+## Latest four-milestone cycle
+
+Partial/mixed insufficient-evidence benchmark:
+
+```text
+f44c4be — Expand insufficient evidence benchmark
+```
+
+Semantic judge hard cases:
+
+```text
+1d091e0 — Add semantic judge hard cases
+```
+
+Targeted NE -> EN retrieval benchmark:
+
+```text
+d6fa4e8 — Benchmark NE to EN retrieval improvements
+```
+
+Answer-quality evaluation and checkpoint V2:
+
+```text
+1e7619d — Add answer quality evaluation checkpoint
+```
+
+---
+
+## Previous production-quality cycle
 
 Automated semantic judge:
 
@@ -2497,19 +2220,27 @@ Human response-level abstention evaluation:
 d622873 — Add response abstention evaluation
 ```
 
-Review metadata correction:
+Response-review metadata correction:
 
 ```text
 ab91220 — Correct response review language notes
 ```
 
-Consolidated production-quality checkpoint:
+Production quality checkpoint:
 
 ```text
 99e10df — Add production quality checkpoint
 ```
 
-## Previous semantic-evaluation checkpoint
+Status checkpoint:
+
+```text
+c2c6f08 — Update production quality checkpoint
+```
+
+---
+
+## Previous semantic-evaluation cycle
 
 Status checkpoint:
 
@@ -2517,19 +2248,19 @@ Status checkpoint:
 2de6b86 — Update semantic evaluation checkpoint
 ```
 
-Human semantic evaluation:
+Human semantic citation evaluation:
 
 ```text
 750966f — Add human semantic citation evaluation
 ```
 
-Stratified human subset:
+Stratified semantic review subset:
 
 ```text
 47cab25 — Add stratified semantic review subset
 ```
 
-Multilingual claim/parser cleanup:
+Multilingual claim/parser correction:
 
 ```text
 984710e — Fix multilingual claim extraction artifacts
@@ -2547,6 +2278,8 @@ Claim citation alignment:
 a0c0e75 — Add claim citation alignment evaluation
 ```
 
+---
+
 ## Production benchmark cycle
 
 ```text
@@ -2555,6 +2288,8 @@ e9ab5ec — Migrate Gemini generation to Interactions API
 9d14f05 — Add resumable RAG evaluation runner
 80058cf — Add deterministic RAG evaluation metrics
 ```
+
+---
 
 ## Earlier architecture milestones
 
@@ -2572,204 +2307,146 @@ e9642ee — Add evaluated context selection pipeline
 
 ---
 
-# Recommended Next Four-Milestone Cycle
+# Important Persisted Evaluation Artifacts
 
-The next cycle should continue to prioritize measured coverage gaps rather than speculative architecture changes.
+Official production benchmark:
 
-Recommended sequence:
+```text
+data/evaluation/rag_runs/production_rag_v2_interactions.jsonl
+```
 
-1. **Expand insufficient-evidence benchmark with partial and mixed-evidence cases**
-2. **Expand semantic human reference with hard negative / ambiguous classes**
-3. **Benchmark targeted NE -> EN retrieval improvements**
-4. **Add answer-completeness and factual-fidelity evaluation, then checkpoint**
+Retrieval benchmark:
 
-The exact sequence may change if the first experiments identify a more important failure mode.
+```text
+data/evaluation/retrieval_questions.jsonl
+```
+
+Production semantic claims:
+
+```text
+data/evaluation/semantic/production_rag_v2_claims.jsonl
+```
+
+Human semantic reference:
+
+```text
+data/evaluation/semantic/production_rag_v2_human_review_v1_labeled.jsonl
+```
+
+Original automated judge:
+
+```text
+data/evaluation/semantic/production_rag_v2_human_review_v1_judge.jsonl
+```
+
+Original insufficient-evidence benchmark:
+
+```text
+data/evaluation/insufficient_evidence_questions.jsonl
+```
+
+Original insufficient-evidence hosted run:
+
+```text
+data/evaluation/rag_runs/insufficient_evidence_v1.jsonl
+```
+
+Original human response review:
+
+```text
+data/evaluation/rag_runs/insufficient_evidence_v1_response_review.jsonl
+```
+
+Partial/mixed benchmark:
+
+```text
+data/evaluation/insufficient_evidence_partial_mixed_v1.jsonl
+```
+
+Partial/mixed hosted run:
+
+```text
+data/evaluation/rag_runs/insufficient_evidence_partial_mixed_v1.jsonl
+```
+
+Partial/mixed human response review:
+
+```text
+data/evaluation/rag_runs/insufficient_evidence_partial_mixed_v1_response_review.jsonl
+```
+
+Hard semantic judge reference:
+
+```text
+data/evaluation/semantic/semantic_judge_hard_cases_v1.jsonl
+```
+
+Hard semantic judge predictions:
+
+```text
+data/evaluation/semantic/semantic_judge_hard_cases_v1_judge.jsonl
+```
+
+Targeted NE -> EN retrieval results:
+
+```text
+data/evaluation/retrieval_runs/ne_en_targeted_retrieval_v1.json
+```
+
+Human answer-quality review:
+
+```text
+data/evaluation/rag_runs/production_rag_v2_answer_quality_review_v1.jsonl
+```
+
+Production checkpoint V1:
+
+```text
+data/evaluation/production_quality_checkpoint_v1.json
+```
+
+Production checkpoint V2:
+
+```text
+data/evaluation/production_quality_checkpoint_v2.json
+```
 
 ---
 
-# Proposed Milestone 1 — Partial and Mixed Evidence Benchmark
+# Expensive Operations
 
-Extend the insufficient-evidence dataset with:
+Do not rerun without a clear reason:
 
-```text
-partial_evidence
-mixed_supported_unsupported
-```
+* forced OCR
+* corpus ingestion
+* dense embedding ingestion
+* contextual-vector backfill
+* full retrieval benchmark involving hosted embedding calls
+* full BGE reranker benchmark
+* completed 30-question hosted Gemini production benchmark
+* completed semantic-judge calls
 
-Examples should require the model to distinguish:
+The current corpus and stored vectors remain valid for the current production architecture.
 
-```text
-fully answerable
-partially answerable
-not answerable
-```
+No contextual-vector backfill should be performed merely because the structured-table representation diagnostic looked promising.
 
-Evaluation should preserve separate labels for:
-
-* substantive answer
-* semantic abstention
-* partial answer with explicit limitation
-* unsafe unsupported completion
-
-This will exercise the currently unused:
-
-```text
-partial_answer_with_limitation
-```
-
-review path.
-
-The dataset should remain balanced across language pairs where practical.
-
----
-
-# Proposed Milestone 2 — Hard Semantic Judge Reference Cases
-
-The existing automated judge reference set lacks human:
-
-```text
-unsupported
-needs_review
-unclear
-```
-
-examples.
-
-Build a small targeted human-reviewed challenge set containing:
-
-* deliberately unsupported claim/evidence pairs
-* partially supported numeric/date cases
-* OCR-corrupted ambiguous evidence
-* citation-requirement ambiguity
-* conflicting or incomplete evidence
-* semantically related but non-supporting passages
-
-Use this set to measure class-specific judge behavior before using the automated evaluator more broadly.
-
-Human labels must remain the ground truth.
-
----
-
-# Proposed Milestone 3 — NE -> EN Retrieval Improvement
-
-Current official production result:
-
-```text
-NE -> EN selected primary hit = 0.667
-NE -> EN selected relevant recall = 0.722
-```
-
-Potential experiments may include:
-
-* multilingual query reformulation
-* translated retrieval query as an additional signal
-* alternative contextual query instruction
-* candidate-depth experiments
-* fusion of original and translated semantic queries
-* model comparison only if justified
-* language-aware retrieval strategies
-
-Experiments must remain separate from production.
-
-Promotion requires improvement on the retrieval benchmark without materially degrading the other language slices.
-
-A production rerun should occur only after an actual retrieval change is promoted.
-
----
-
-# Proposed Milestone 4 — Completeness and Fidelity Evaluation
-
-Current semantic review answers:
-
-> Are generated claims supported?
-
-It does not fully answer:
-
-> Did the answer include the important supported information that should have been present?
-
-Add targeted evaluation for:
-
-* answer completeness
-* numerical fidelity
-* date fidelity
-* legal qualification preservation
-* exception preservation
-* material omission
-* unnecessary citation use
-
-This milestone should end with another consolidated checkpoint and an updated status document.
-
----
-
-# Remaining Major Work
-
-Evaluation and quality:
-
-1. partial-evidence benchmark
-2. mixed supported/unsupported benchmark
-3. hard-negative automated-judge validation
-4. answer completeness evaluation
-5. larger semantic faithfulness evaluation
-6. numerical fidelity evaluation
-7. date fidelity evaluation
-8. legal qualification and exception preservation
-9. citation-efficiency evaluation
-10. OCR evidence-quality diagnostics
-
-Retrieval:
-
-11. NE -> EN retrieval improvements
-12. targeted investigation of persistent top-20 misses
-13. query reformulation experiments
-14. possible cross-lingual query translation/fusion
-15. candidate-depth experiments where justified
-
-Application:
-
-16. FastAPI application
-17. Streamlit interface
-18. structured logging
-19. user-facing source rendering refinement
-
-Experiment and operations:
-
-20. MLflow experiment tracking
-21. Docker/Compose application integration
-22. CI refinement
-23. environment/configuration refinement
-
-Documentation and portfolio:
-
-24. README architecture documentation
-25. benchmark documentation
-26. screenshots/demo
-27. portfolio presentation
-
-Potential experimental work, only if evaluation justifies it:
-
-* generation model comparison
-* context-size comparison
-* citation-aware generation prompting
-* reranker-score evidence sufficiency experiments
-* parent/child chunking
-* automatic semantic validation
-* advanced prompt-injection defenses
-
-Experiments must remain separate from production until measured.
+A new representation must first be benchmarked carefully.
 
 ---
 
 # Development Environment
 
-Primary environment:
+Primary development environment:
 
-* Windows
-* Python 3.12 virtual environment
-* Windows CMD
-* Docker-hosted Qdrant
-* Hugging Face hosted E5
-* Hugging Face hosted BGE reranker
-* Gemini Developer API
+```text
+Windows
+Python 3.12 virtual environment
+Windows CMD
+Docker-hosted Qdrant
+Hugging Face hosted E5
+Hugging Face hosted BGE reranker
+Gemini Developer API
+```
 
 Local project path:
 
@@ -2791,7 +2468,7 @@ Do not disable Smart App Control.
 
 # Git and OneDrive Note
 
-This clone is stored under OneDrive.
+The working clone is stored under OneDrive.
 
 Git automatic housekeeping previously produced deletion/retry problems under:
 
@@ -2799,19 +2476,27 @@ Git automatic housekeeping previously produced deletion/retry problems under:
 .git/objects
 ```
 
-Repository integrity was checked successfully with:
+Repository integrity was checked with:
 
 ```text
 git fsck --full
 ```
 
-Local automatic Git GC was disabled for this clone:
+No corruption was found.
+
+Automatic Git GC was disabled locally:
 
 ```text
 git config --local gc.auto 0
 ```
 
-Keep this workaround unless the repository is moved to a fresh clone outside OneDrive.
+Keep this workaround for the current clone.
+
+Do not routinely run:
+
+```text
+git gc
+```
 
 Do not manually delete:
 
@@ -2819,21 +2504,18 @@ Do not manually delete:
 .git/objects/*
 ```
 
-Do not rerun:
+If a stale Git lock appears after an interrupted command:
 
-```text
-git gc
-```
+1. verify that no Git process is still active
+2. remove only the specific stale lock if necessary
 
-as routine project work in this OneDrive clone.
-
-If a Git lock appears after an interrupted command, first verify that no Git process is active before removing only the specific stale lock file.
+A future fresh clone outside OneDrive may be safer, but it is not required for current milestone work.
 
 ---
 
 # Secrets
 
-Never commit, print, or expose:
+Never commit, print, expose, or ask the user to paste:
 
 ```text
 HF_TOKEN
@@ -2843,32 +2525,7 @@ GEMINI_API_KEY
 
 Hosted credentials remain local environment configuration.
 
-Evaluation artifacts must never contain secrets.
-
----
-
-# Expensive Operations
-
-Do not rerun unless required:
-
-* forced OCR
-* document ingestion
-* dense embeddings
-* contextual dense-vector backfill
-* full reranker benchmark
-* completed hosted production benchmark generation
-* completed semantic-judge calls
-
-The current corpus and stored vectors remain valid for the present architecture.
-
-The semantic evaluation dataset can be rebuilt from:
-
-* persisted production RAG output
-* current Qdrant evidence
-
-without rerunning the production Gemini benchmark.
-
-The consolidated production-quality checkpoint is also deterministic over persisted evaluation artifacts.
+Evaluation artifacts must not contain credentials.
 
 ---
 
@@ -2894,18 +2551,23 @@ git diff --check
 
 Stage only intended files.
 
-Before committing:
+Avoid:
+
+```text
+git add .
+```
+
+when unrelated files may exist.
+
+Before commit:
 
 ```text
 git diff --cached --check
-```
-
-Inspect staged state:
-
-```text
-git status --short
 git diff --cached --stat
+git status --short
 ```
+
+Commit the completed milestone.
 
 Push explicitly:
 
@@ -2913,22 +2575,14 @@ Push explicitly:
 git push origin main
 ```
 
-Verify:
+Verify after push:
 
 ```text
 git status --short
 git log -1 --oneline
 ```
 
-A milestone is complete only after the validated change is committed and pushed.
-
-Avoid:
-
-```text
-git add .
-```
-
-when unrelated working-tree files might exist.
+A milestone is complete only after it is committed and pushed.
 
 ---
 
@@ -2942,95 +2596,324 @@ docs/project_status.md
 
 after every **four completed milestones**.
 
-Do not update it after every small implementation change.
+Do not update it after every individual milestone.
 
-An earlier update is appropriate only for:
+An earlier update is appropriate only when required by:
 
 * a major architectural reset
-* an explicit handoff requirement
-* a correction necessary to prevent future work from using invalid project state
+* an explicit handoff
+* correction of project state that would otherwise mislead future work
 
-When this file is updated, replace the complete document rather than maintaining partial fragments across conversations.
+When this document is updated, replace the entire file rather than editing scattered sections.
 
 ---
 
-# Current Checkpoint
+# Current Four-Milestone Checkpoint
 
-The completed four-milestone checkpoint is:
+Checkpoint title:
 
-**Semantic Judge Validation, Abstention Safety, and Consolidated Production Quality**
+**Hard-Case Evaluation, Cross-Lingual Retrieval Diagnostics, and Answer Quality**
 
 Completed milestones:
 
 ```text
-1. Automated semantic judge validation
-2. Insufficient-evidence benchmark
-3. Human response-level abstention evaluation
-4. Consolidated production-quality checkpoint
+1. Partial/mixed insufficient-evidence benchmark
+2. Hard semantic-judge challenge evaluation
+3. Targeted NE -> EN retrieval benchmark
+4. Answer completeness and factual-fidelity evaluation
 ```
 
-Primary milestone commits:
+Milestone commits:
 
 ```text
-7a62a77 — Add automated semantic judge evaluation
-c3d60b7 — Add insufficient evidence benchmark
-d622873 — Add response abstention evaluation
-99e10df — Add production quality checkpoint
+f44c4be — Expand insufficient evidence benchmark
+1d091e0 — Add semantic judge hard cases
+d6fa4e8 — Benchmark NE to EN retrieval improvements
+1e7619d — Add answer quality evaluation checkpoint
 ```
 
-Supporting correction:
+Current validated full suite:
 
 ```text
-ab91220 — Correct response review language notes
+604 passed in 3.35s
 ```
 
-Current quality headline:
+Current pushed repository head before this status-document checkpoint commit:
 
 ```text
-Official production structural benchmark:
-    Selected primary hit              = 0.833
-    Selected relevant recall          = 0.833
-    Valid citation references         = 1.000
-
-Human semantic review:
-    Fully supported                   = 0.950
-    At least partially supported      = 1.000
-    Unsupported                       = 0.000
-    Required citation coverage        = 1.000
-    Individual full support           = 0.917
-    Individual at least partial       = 0.979
-
-Automated semantic judge:
-    Semantic exact agreement          = 0.979
-    Citation requirement agreement    = 1.000
-    Individual evidence agreement     = 0.958
-
-Insufficient-evidence structural:
-    Decision accuracy                 = 0.938
-    Withholding success               = 0.875
-    Structural false accept           = 0.125
-    Structural false withhold         = 0.000
-
-Human response behavior:
-    Behavior accuracy                 = 1.000
-    Answer delivery                   = 1.000
-    Semantic abstention success       = 1.000
-    Unsafe substantive answer rate    = 0.000
-    Structural/behavior agreement     = 0.938
+1e7619d — Add answer quality evaluation checkpoint
 ```
 
-Current validated test suite:
+---
+
+# Current Production Decisions
+
+## Retrieval
+
+Same-language:
 
 ```text
-467 passed
+dense_contextual + BM25 -> RRF
 ```
 
-Current pushed repository head before this status-document update:
+Cross-language:
 
 ```text
-99e10df — Add production quality checkpoint
+dense_contextual only
 ```
 
-The next development phase is:
+## Candidate Depth
 
-**Hard-case evaluation expansion and measured cross-lingual retrieval improvement.**
+```text
+20
+```
+
+## Reranker
+
+```text
+BAAI/bge-reranker-v2-m3
+```
+
+## Final Context
+
+```text
+top 5
+```
+
+## Generation
+
+```text
+Gemini
+gemini-3.8-flash
+Interactions API
+```
+
+## Prompt
+
+```text
+GroundedPromptBuilder
+```
+
+## Evidence IDs
+
+```text
+E1
+E2
+E3
+...
+```
+
+Combined citation syntax is also supported:
+
+```text
+[E1, E2]
+```
+
+## Guard
+
+```text
+Structural evidence/citation validation
+```
+
+No arbitrary retrieval threshold.
+
+## Production Benchmark
+
+```text
+production_rag_v2_interactions.jsonl
+```
+
+No new production run has replaced it.
+
+---
+
+# Recommended Next Development Cycle
+
+The latest evaluation cycle identified two principal measured gaps:
+
+```text
+1. NE -> EN candidate retrieval
+2. answer completeness
+```
+
+A sensible next four-milestone cycle is:
+
+## Milestone 1 — Automatic Cross-Lingual Query Reformulation Benchmark
+
+Replace the manually controlled English evaluation query with one or more realistic automatic strategies.
+
+Possible controlled experiments:
+
+```text
+Nepali original only
+automatic English translation only
+original + translated fusion
+translated dense + BM25
+```
+
+Measure:
+
+* retrieval hit
+* MRR
+* recall
+* latency
+* hosted-call cost
+* translation failures
+* meaning preservation
+
+Do not change production yet.
+
+---
+
+## Milestone 2 — Table-Aware Passage Representation Benchmark
+
+Develop an evaluation-only representation for table-heavy passages.
+
+Potential format:
+
+```text
+Document: ...
+Table: ...
+Section: ...
+Content:
+...
+```
+
+Benchmark it against:
+
+```text
+raw dense
+current contextual dense
+table-aware contextual representation
+```
+
+Focus initially on table-heavy Economic Survey failures.
+
+Do not backfill the production collection until the representation is shown to improve the benchmark without harmful regressions.
+
+---
+
+## Milestone 3 — Answer Completeness Improvement Experiment
+
+Use the 30-question answer-quality review as a diagnostic set.
+
+Focus specifically on the six currently incomplete answers.
+
+Possible causes should be separated:
+
+```text
+retrieval miss
+gold passage outside selected top 5
+generator omission despite correct evidence
+overly broad question
+table evidence interpretation
+```
+
+Potential interventions may include:
+
+* retrieval improvements
+* context-selection changes
+* completeness-aware generation instructions
+* evidence coverage checks
+
+Preserve factual fidelity while improving completeness.
+
+Do not optimize only for the six failure cases without checking regression behavior.
+
+---
+
+## Milestone 4 — Production Promotion Decision
+
+If a retrieval, representation, context, or generation intervention shows a clear improvement:
+
+1. promote exactly one measured production change
+2. rerun the official 30-question benchmark
+3. rerun answer-quality evaluation
+4. compare against the current immutable baseline
+5. create the next production-quality checkpoint
+6. update this status document
+
+If no intervention justifies promotion, keep production unchanged and record the negative result rather than forcing a change.
+
+---
+
+# Remaining Major Work
+
+Evaluation and quality:
+
+1. automatic query translation/reformulation evaluation
+2. table-aware passage representation benchmark
+3. answer completeness improvement
+4. numerical fidelity regression tests
+5. date fidelity evaluation
+6. legal qualification and exception preservation
+7. citation-efficiency evaluation
+8. larger human semantic evaluation
+9. OCR quality diagnostics
+10. automated judge ambiguity calibration
+
+Retrieval:
+
+11. production-worthy NE -> EN retrieval improvement
+12. targeted table-heavy retrieval improvement
+13. automatic translated-query fusion
+14. candidate-depth cost/performance evaluation
+15. possible query-instruction experiments
+
+Generation:
+
+16. completeness-aware prompt experiments
+17. evidence-coverage preservation
+18. citation-efficiency improvements
+19. controlled model comparison only if justified by evaluation
+
+Application:
+
+20. FastAPI application layer
+21. Streamlit or equivalent interface
+22. source rendering
+23. structured logging
+24. error handling
+25. user feedback mechanisms
+
+Operations:
+
+26. Docker/Compose application integration
+27. CI refinement
+28. environment/configuration refinement
+29. MLflow or equivalent experiment tracking
+
+Documentation and portfolio:
+
+30. README architecture documentation
+31. benchmark methodology documentation
+32. system architecture diagram
+33. screenshots/demo
+34. portfolio presentation
+
+Potential experimental work only if justified:
+
+* parent/child chunking
+* alternative multilingual embedding models
+* alternative rerankers
+* automatic semantic validation
+* advanced prompt-injection defenses
+* richer document/table parsing
+
+Experiments remain separate from production until measured.
+
+---
+
+# Immediate Next Action
+
+The latest four milestones are complete and pushed.
+
+The only remaining task for this checkpoint is to commit and push this updated:
+
+```text
+docs/project_status.md
+```
+
+After that, begin the next development cycle with an evaluation-only automatic cross-lingual query reformulation benchmark.
+
+Do not modify production retrieval before that benchmark demonstrates a deployable improvement.
