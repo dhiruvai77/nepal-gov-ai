@@ -1,0 +1,274 @@
+{
+  "analysis_config_id": "production-rag-v2-completeness-failure-analysis-v1",
+  "by_completeness_label": {
+    "incomplete": 6,
+    "mostly_complete": 3,
+    "needs_review": 0
+  },
+  "by_failure_cause": {
+    "generation_omission_despite_full_gold_context": 1,
+    "mixed_context_and_generation_omission": 1,
+    "needs_review": 0,
+    "primary_evidence_not_selected": 5,
+    "supporting_evidence_not_selected": 2
+  },
+  "clean_generation_intervention_question_ids": [
+    "en_en_005"
+  ],
+  "failures": [
+    {
+      "all_primary_selected": false,
+      "all_relevant_selected": false,
+      "category": "education",
+      "completeness_label": "incomplete",
+      "factual_fidelity_label": "fully_faithful",
+      "failure_cause": "primary_evidence_not_selected",
+      "missing_primary_ids": [
+        "8235343e-98c0-50ee-b3e8-33596631bff2"
+      ],
+      "missing_relevant_ids": [
+        "8235343e-98c0-50ee-b3e8-33596631bff2"
+      ],
+      "primary_recall": 0.0,
+      "query": "What does the law say about free and compulsory education?",
+      "query_language": "en",
+      "question_id": "en_en_002",
+      "relevant_recall": 0.5,
+      "review_notes": "the response contains substantial Act material, but it misses the benchmark's central constitutional formulation that citizens have a right to compulsory and free basic education and free secondary education from the State.",
+      "selected_primary_ids": [],
+      "selected_relevant_ids": [
+        "81bba52d-9a16-59a0-a852-54f899416cb0"
+      ],
+      "target_language": "en"
+    },
+    {
+      "all_primary_selected": true,
+      "all_relevant_selected": false,
+      "category": "education",
+      "completeness_label": "incomplete",
+      "factual_fidelity_label": "minor_issue",
+      "failure_cause": "mixed_context_and_generation_omission",
+      "missing_primary_ids": [],
+      "missing_relevant_ids": [
+        "a155f4a1-2cef-5a44-82b8-9480f51cb6e8",
+        "13be0a80-f798-59e1-832e-0efde1c25a68"
+      ],
+      "primary_recall": 1.0,
+      "query": "What does the Economic Survey report about schools and students?",
+      "query_language": "en",
+      "question_id": "en_en_004",
+      "relevant_recall": 0.5,
+      "review_notes": "it describes the school/student tables but does not actually convey the principal numeric school/student results from the primary gold passage. Also, the reading-proficiency statement is only partially supported by the truncated evidence passage.",
+      "selected_primary_ids": [
+        "145add01-c0eb-5201-8c37-9ce095fac25f"
+      ],
+      "selected_relevant_ids": [
+        "145add01-c0eb-5201-8c37-9ce095fac25f",
+        "9fb4fc14-e3d3-5149-b0bf-e2c9273f6f20"
+      ],
+      "target_language": "en"
+    },
+    {
+      "all_primary_selected": true,
+      "all_relevant_selected": true,
+      "category": "education",
+      "completeness_label": "incomplete",
+      "factual_fidelity_label": "fully_faithful",
+      "failure_cause": "generation_omission_despite_full_gold_context",
+      "missing_primary_ids": [],
+      "missing_relevant_ids": [],
+      "primary_recall": 1.0,
+      "query": "What does the Economic Survey say about SEE examination results?",
+      "query_language": "en",
+      "question_id": "en_en_005",
+      "relevant_recall": 1.0,
+      "review_notes": "it describes what the SEE table contains but does not give the actual historical examination results, which are the substance of the gold evidence.",
+      "selected_primary_ids": [
+        "028b4f22-a2d8-57d6-84aa-819330f738dd"
+      ],
+      "selected_relevant_ids": [
+        "028b4f22-a2d8-57d6-84aa-819330f738dd"
+      ],
+      "target_language": "en"
+    },
+    {
+      "all_primary_selected": false,
+      "all_relevant_selected": false,
+      "category": "finance_economy",
+      "completeness_label": "incomplete",
+      "factual_fidelity_label": "fully_faithful",
+      "failure_cause": "primary_evidence_not_selected",
+      "missing_primary_ids": [
+        "332cdfc6-3b19-564d-ac21-64a6fae52238"
+      ],
+      "missing_relevant_ids": [
+        "332cdfc6-3b19-564d-ac21-64a6fae52238"
+      ],
+      "primary_recall": 0.0,
+      "query": "What does the Economic Survey report about Nepal's economic growth?",
+      "query_language": "en",
+      "question_id": "en_en_011",
+      "relevant_recall": 0.0,
+      "review_notes": "these are the known Economic Survey GDP retrieval failures. The answers cautiously say the retrieved evidence is insufficient, so they are factually faithful to what was retrieved, but they are incomplete against the gold GDP-growth evidence.",
+      "selected_primary_ids": [],
+      "selected_relevant_ids": [],
+      "target_language": "en"
+    },
+    {
+      "all_primary_selected": false,
+      "all_relevant_selected": false,
+      "category": "education",
+      "completeness_label": "incomplete",
+      "factual_fidelity_label": "fully_faithful",
+      "failure_cause": "primary_evidence_not_selected",
+      "missing_primary_ids": [
+        "2f2f9f30-61ce-576d-a509-1d1f0cf75644"
+      ],
+      "missing_relevant_ids": [
+        "2f2f9f30-61ce-576d-a509-1d1f0cf75644"
+      ],
+      "primary_recall": 0.0,
+      "query": "What does the Economic Survey report about schools and student numbers?",
+      "query_language": "en",
+      "question_id": "en_ne_002",
+      "relevant_recall": 0.6666666666666666,
+      "review_notes": "unlike Q14, it correctly says 33.6%, but it misses the primary gold passage's important ratios such as approximately 170 students per community school and 24 students per teacher.",
+      "selected_primary_ids": [],
+      "selected_relevant_ids": [
+        "9ac6ec9f-3a45-5b02-ac02-712afc151f77",
+        "f1b5f02c-9933-550e-a8e3-762d5c25fc15"
+      ],
+      "target_language": "ne"
+    },
+    {
+      "all_primary_selected": true,
+      "all_relevant_selected": false,
+      "category": "health_population",
+      "completeness_label": "mostly_complete",
+      "factual_fidelity_label": "fully_faithful",
+      "failure_cause": "supporting_evidence_not_selected",
+      "missing_primary_ids": [],
+      "missing_relevant_ids": [
+        "2475086f-616a-5344-8965-43c2510e6c34"
+      ],
+      "primary_recall": 1.0,
+      "query": "What does the Economic Survey report about health services and health institutions in Nepal?",
+      "query_language": "en",
+      "question_id": "en_ne_005",
+      "relevant_recall": 0.5,
+      "review_notes": "it covers the primary health-institution/service information but omits the supporting gold figure of 104,793 government health personnel,",
+      "selected_primary_ids": [
+        "58f43a9b-5a3a-583b-b2cc-e9bda41b181b"
+      ],
+      "selected_relevant_ids": [
+        "58f43a9b-5a3a-583b-b2cc-e9bda41b181b"
+      ],
+      "target_language": "ne"
+    },
+    {
+      "all_primary_selected": false,
+      "all_relevant_selected": false,
+      "category": "health_population",
+      "completeness_label": "mostly_complete",
+      "factual_fidelity_label": "fully_faithful",
+      "failure_cause": "primary_evidence_not_selected",
+      "missing_primary_ids": [
+        "6fb81c34-02e8-5ebc-8bb4-c055ea1e02d9"
+      ],
+      "missing_relevant_ids": [
+        "6fb81c34-02e8-5ebc-8bb4-c055ea1e02d9"
+      ],
+      "primary_recall": 0.0,
+      "query": "जनस्वास्थ्य सेवा ऐनले आकस्मिक स्वास्थ्य सेवाबारे के व्यवस्था गरेको छ?",
+      "query_language": "ne",
+      "question_id": "ne_en_003",
+      "relevant_recall": 0.6666666666666666,
+      "review_notes": "it covers most emergency-health provisions but omits the material referral provision when emergency service is unavailable at the institution.",
+      "selected_primary_ids": [],
+      "selected_relevant_ids": [
+        "629ba8c4-721e-5458-83fa-6983949b1205",
+        "08afb21c-9616-530c-8e04-77a714922902"
+      ],
+      "target_language": "en"
+    },
+    {
+      "all_primary_selected": false,
+      "all_relevant_selected": false,
+      "category": "finance_economy",
+      "completeness_label": "incomplete",
+      "factual_fidelity_label": "fully_faithful",
+      "failure_cause": "primary_evidence_not_selected",
+      "missing_primary_ids": [
+        "332cdfc6-3b19-564d-ac21-64a6fae52238"
+      ],
+      "missing_relevant_ids": [
+        "332cdfc6-3b19-564d-ac21-64a6fae52238"
+      ],
+      "primary_recall": 0.0,
+      "query": "आर्थिक सर्वेक्षणले नेपालको आर्थिक वृद्धिबारे के जानकारी दिएको छ?",
+      "query_language": "ne",
+      "question_id": "ne_en_005",
+      "relevant_recall": 0.0,
+      "review_notes": null,
+      "selected_primary_ids": [],
+      "selected_relevant_ids": [],
+      "target_language": "en"
+    },
+    {
+      "all_primary_selected": true,
+      "all_relevant_selected": false,
+      "category": "education",
+      "completeness_label": "mostly_complete",
+      "factual_fidelity_label": "fully_faithful",
+      "failure_cause": "supporting_evidence_not_selected",
+      "missing_primary_ids": [],
+      "missing_relevant_ids": [
+        "d9e98d14-e097-5736-a9aa-15d94c0488b8"
+      ],
+      "primary_recall": 1.0,
+      "query": "आर्थिक वर्ष २०२५/२६ को बजेट वक्तव्यले विद्यार्थी छात्रवृत्तिबारे के भन्छ?",
+      "query_language": "ne",
+      "question_id": "ne_en_006",
+      "relevant_recall": 0.6666666666666666,
+      "review_notes": "Omits the additional medical/public-health scholarship provisions in the second gold passage.",
+      "selected_primary_ids": [
+        "dadb426b-2b3b-570e-a6c6-d08cc55c77a1"
+      ],
+      "selected_relevant_ids": [
+        "dadb426b-2b3b-570e-a6c6-d08cc55c77a1",
+        "9df74180-9cff-57ef-9bd4-f6de4931d6cf"
+      ],
+      "target_language": "en"
+    }
+  ],
+  "fully_complete_count": 21,
+  "interpretation": {
+    "generation_omission_despite_full_gold_context": "All manually verified gold evidence was selected, so generation behavior can be isolated without changing retrieval.",
+    "mixed_context_and_generation_omission": "Primary evidence was present but broader gold coverage was incomplete, while the answer was still materially incomplete. Both generation behavior and context coverage may contribute.",
+    "primary_evidence_not_selected": "The generator never received all manually verified primary evidence, so retrieval or context selection is the first limiting layer.",
+    "supporting_evidence_not_selected": "Primary evidence was available, but one or more supporting gold passages were absent. Improving context coverage may address the remaining omission."
+  },
+  "mixed_generation_intervention_question_ids": [
+    "en_en_004"
+  ],
+  "non_complete_count": 9,
+  "non_complete_rate": 0.3,
+  "production_changed": false,
+  "prompt_benchmark_question_ids": [
+    "en_en_005",
+    "en_en_004"
+  ],
+  "question_count": 30,
+  "retrieval_or_context_intervention_question_ids": [
+    "en_en_002",
+    "en_en_004",
+    "en_en_011",
+    "en_ne_002",
+    "en_ne_005",
+    "ne_en_003",
+    "ne_en_005",
+    "ne_en_006"
+  ],
+  "schema_version": 1,
+  "source_review_config_id": "production-rag-v2-answer-quality-v1"
+}
