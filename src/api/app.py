@@ -10,7 +10,8 @@ Application responsibilities are limited to:
 - structured source serialization,
 - request observability,
 - dependency readiness,
-- stable HTTP error behavior.
+- stable HTTP error behavior,
+- serving the same-origin browser application.
 
 This module does not alter production RAG behavior.
 """
@@ -46,6 +47,9 @@ from pydantic import (
     field_validator,
 )
 
+from src.api.frontend import (
+    register_frontend,
+)
 from src.api.readiness import (
     DependencyReadiness,
     check_production_dependencies,
@@ -530,9 +534,6 @@ def create_app(
             )
 
         except Exception:
-            # Starting the HTTP process while marking it not-ready provides
-            # useful diagnostics to orchestrators instead of making both
-            # liveness and readiness disappear on configuration failures.
             LOGGER.exception(
                 "Production RAG pipeline initialization failed."
             )
@@ -557,6 +558,10 @@ def create_app(
         ),
         version="1.0.0",
         lifespan=lifespan,
+    )
+
+    register_frontend(
+        application
     )
 
     @application.middleware(

@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+    <meta
+        name="description"
+        content="Evidence-grounded question answering over official Nepal government documents."
+    >
+    <title>NepalGov AI</title>
+    <link
+        rel="stylesheet"
+        href="/static/styles.css"
+    >
+</head>
+
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <a
+                class="brand"
+                href="/"
+                aria-label="NepalGov AI home"
+            >
+                <span class="brand-mark" aria-hidden="true">N</span>
+                <span>
+                    <strong>NepalGov AI</strong>
+                    <small>Official-document question answering</small>
+                </span>
+            </a>
+
+            <div
+                id="service-status"
+                class="status-chip status-checking"
+                aria-live="polite"
+            >
+                Checking service…
+            </div>
+        </div>
+    </header>
+
+    <main class="page-shell">
+        <section class="hero">
+            <p class="eyebrow">Evidence-grounded RAG</p>
+            <h1>Ask questions about Nepal government documents.</h1>
+            <p class="hero-copy">
+                Answers are generated only from indexed official evidence
+                and include links to the government sources used.
+            </p>
+        </section>
+
+        <section class="query-card" aria-labelledby="ask-heading">
+            <div class="section-heading">
+                <div>
+                    <p class="section-kicker">Ask</p>
+                    <h2 id="ask-heading">Your question</h2>
+                </div>
+
+                <span class="corpus-label">
+                    6 indexed government documents
+                </span>
+            </div>
+
+            <form id="ask-form">
+                <label for="query">Question</label>
+
+                <textarea
+                    id="query"
+                    name="query"
+                    rows="5"
+                    maxlength="2000"
+                    placeholder="Example: What rights does the Constitution of Nepal guarantee regarding education?"
+                    required
+                ></textarea>
+
+                <div class="field-grid">
+                    <div class="field">
+                        <label for="answer-language">
+                            Answer language
+                        </label>
+
+                        <select
+                            id="answer-language"
+                            name="answer-language"
+                        >
+                            <option value="en">English</option>
+                            <option value="ne">नेपाली</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="document-filter">
+                            Document
+                        </label>
+
+                        <select
+                            id="document-filter"
+                            name="document-filter"
+                        >
+                            <option value="">
+                                All indexed documents
+                            </option>
+
+                            <option
+                                value="constitution_nepal_current_en"
+                                data-language="en"
+                            >
+                                Constitution of Nepal
+                            </option>
+
+                            <option
+                                value="public_health_service_act_2075_en"
+                                data-language="en"
+                            >
+                                Public Health Service Act 2075
+                            </option>
+
+                            <option
+                                value="compulsory_free_education_act_2075_en"
+                                data-language="en"
+                            >
+                                Compulsory and Free Education Act 2075
+                            </option>
+
+                            <option
+                                value="economic_survey_2023_24_en"
+                                data-language="en"
+                            >
+                                Economic Survey 2023/24
+                            </option>
+
+                            <option
+                                value="economic_survey_2081_82_ne"
+                                data-language="ne"
+                            >
+                                Economic Survey 2081/82 (Nepali)
+                            </option>
+
+                            <option
+                                value="budget_speech_2025_26_en"
+                                data-language="en"
+                            >
+                                Budget Speech 2025/26
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="evidence-language">
+                            Evidence language
+                        </label>
+
+                        <select
+                            id="evidence-language"
+                            name="evidence-language"
+                        >
+                            <option value="">Any indexed language</option>
+                            <option value="en">English</option>
+                            <option value="ne">नेपाली</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="examples">
+                    <span>Try an example:</span>
+
+                    <button
+                        type="button"
+                        class="example-button"
+                        data-query="What rights does the Constitution of Nepal guarantee regarding education?"
+                        data-language="en"
+                        data-document="constitution_nepal_current_en"
+                    >
+                        Education rights
+                    </button>
+
+                    <button
+                        type="button"
+                        class="example-button"
+                        data-query="What provisions does the Public Health Service Act make regarding emergency health services?"
+                        data-language="en"
+                        data-document="public_health_service_act_2075_en"
+                    >
+                        Emergency health
+                    </button>
+
+                    <button
+                        type="button"
+                        class="example-button"
+                        data-query="आर्थिक वर्ष २०२५/२६ को बजेट वक्तव्यले विद्यार्थी छात्रवृत्तिबारे के भन्छ?"
+                        data-language="ne"
+                        data-document="budget_speech_2025_26_en"
+                    >
+                        छात्रवृत्ति
+                    </button>
+                </div>
+
+                <div class="submit-row">
+                    <button
+                        id="submit-button"
+                        class="primary-button"
+                        type="submit"
+                    >
+                        Ask NepalGov AI
+                    </button>
+
+                    <p
+                        id="request-progress"
+                        class="request-progress"
+                        aria-live="polite"
+                    ></p>
+                </div>
+            </form>
+        </section>
+
+        <section
+            id="error-panel"
+            class="message-panel error-panel"
+            hidden
+            aria-live="assertive"
+        >
+            <h2>Request failed</h2>
+            <p id="error-message"></p>
+        </section>
+
+        <section
+            id="answer-panel"
+            class="answer-card"
+            hidden
+            aria-live="polite"
+        >
+            <div class="answer-heading">
+                <div>
+                    <p class="section-kicker">Answer</p>
+                    <h2 id="answer-status">Grounded response</h2>
+                </div>
+
+                <span
+                    id="acceptance-chip"
+                    class="status-chip"
+                ></span>
+            </div>
+
+            <div
+                id="answer-text"
+                class="answer-text"
+            ></div>
+
+            <div class="diagnostic-row">
+                <span id="model-diagnostic"></span>
+                <span id="context-diagnostic"></span>
+                <span id="time-diagnostic"></span>
+                <span id="request-diagnostic"></span>
+            </div>
+
+            <div
+                id="sources-section"
+                class="sources-section"
+                hidden
+            >
+                <div class="sources-heading">
+                    <div>
+                        <p class="section-kicker">Evidence</p>
+                        <h3>Government sources</h3>
+                    </div>
+
+                    <span id="source-count"></span>
+                </div>
+
+                <div id="source-list" class="source-list"></div>
+            </div>
+        </section>
+
+        <section class="about-card">
+            <h2>How this works</h2>
+
+            <div class="about-grid">
+                <div>
+                    <strong>1. Retrieve</strong>
+                    <p>
+                        Relevant passages are retrieved from indexed
+                        Nepal government documents.
+                    </p>
+                </div>
+
+                <div>
+                    <strong>2. Rerank</strong>
+                    <p>
+                        A multilingual reranker selects the strongest
+                        evidence for the question.
+                    </p>
+                </div>
+
+                <div>
+                    <strong>3. Answer</strong>
+                    <p>
+                        Gemini generates an answer constrained to the
+                        selected evidence.
+                    </p>
+                </div>
+
+                <div>
+                    <strong>4. Validate</strong>
+                    <p>
+                        Citation identifiers are checked before an answer
+                        is shown.
+                    </p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <p>
+            NepalGov AI is an evidence-grounded research system.
+            For consequential decisions, verify the answer against
+            the linked official source.
+        </p>
+    </footer>
+
+    <script
+        src="/static/app.js"
+        defer
+    ></script>
+</body>
+</html>
