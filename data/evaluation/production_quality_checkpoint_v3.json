@@ -1,0 +1,2129 @@
+{
+  "base_checkpoint_config_id": "production-quality-checkpoint-v2",
+  "base_production_quality": {
+    "base_checkpoint_config_id": "production-quality-checkpoint-v1",
+    "base_production_quality": {
+      "automated_semantic_judge": {
+        "by_language_pair": {
+          "en->en": {
+            "citation_requirement_accuracy": 1.0,
+            "citation_requirement_confusion": {
+              "not_required": {
+                "not_required": 2
+              },
+              "required": {
+                "required": 10
+              }
+            },
+            "citation_requirement_exact_count": 12,
+            "claim_count": 12,
+            "individual_evidence_count": 12,
+            "individual_exact_accuracy": 0.9166666666666666,
+            "individual_exact_count": 11,
+            "semantic_confusion": {
+              "not_a_factual_claim": {
+                "not_a_factual_claim": 2
+              },
+              "partially_supported": {
+                "supported": 1
+              },
+              "supported": {
+                "supported": 9
+              }
+            },
+            "semantic_exact_accuracy": 0.9166666666666666,
+            "semantic_exact_count": 11
+          },
+          "en->ne": {
+            "citation_requirement_accuracy": 1.0,
+            "citation_requirement_confusion": {
+              "not_required": {
+                "not_required": 2
+              },
+              "required": {
+                "required": 10
+              }
+            },
+            "citation_requirement_exact_count": 12,
+            "claim_count": 12,
+            "individual_evidence_count": 12,
+            "individual_exact_accuracy": 0.9166666666666666,
+            "individual_exact_count": 11,
+            "semantic_confusion": {
+              "not_a_factual_claim": {
+                "not_a_factual_claim": 2
+              },
+              "supported": {
+                "supported": 10
+              }
+            },
+            "semantic_exact_accuracy": 1.0,
+            "semantic_exact_count": 12
+          },
+          "ne->en": {
+            "citation_requirement_accuracy": 1.0,
+            "citation_requirement_confusion": {
+              "not_required": {
+                "not_required": 2
+              },
+              "required": {
+                "required": 10
+              }
+            },
+            "citation_requirement_exact_count": 12,
+            "claim_count": 12,
+            "individual_evidence_count": 12,
+            "individual_exact_accuracy": 1.0,
+            "individual_exact_count": 12,
+            "semantic_confusion": {
+              "not_a_factual_claim": {
+                "not_a_factual_claim": 2
+              },
+              "supported": {
+                "supported": 10
+              }
+            },
+            "semantic_exact_accuracy": 1.0,
+            "semantic_exact_count": 12
+          },
+          "ne->ne": {
+            "citation_requirement_accuracy": 1.0,
+            "citation_requirement_confusion": {
+              "not_required": {
+                "not_required": 2
+              },
+              "required": {
+                "required": 10
+              }
+            },
+            "citation_requirement_exact_count": 12,
+            "claim_count": 12,
+            "individual_evidence_count": 12,
+            "individual_exact_accuracy": 1.0,
+            "individual_exact_count": 12,
+            "semantic_confusion": {
+              "not_a_factual_claim": {
+                "not_a_factual_claim": 2
+              },
+              "partially_supported": {
+                "partially_supported": 1
+              },
+              "supported": {
+                "supported": 9
+              }
+            },
+            "semantic_exact_accuracy": 1.0,
+            "semantic_exact_count": 12
+          }
+        },
+        "claim_count": 48,
+        "judge_model": "gemini-3.8-flash",
+        "judge_provider": "gemini",
+        "overall": {
+          "citation_requirement_accuracy": 1.0,
+          "citation_requirement_confusion": {
+            "not_required": {
+              "not_required": 8
+            },
+            "required": {
+              "required": 40
+            }
+          },
+          "citation_requirement_exact_count": 48,
+          "claim_count": 48,
+          "individual_evidence_count": 48,
+          "individual_exact_accuracy": 0.9583333333333334,
+          "individual_exact_count": 46,
+          "semantic_confusion": {
+            "not_a_factual_claim": {
+              "not_a_factual_claim": 8
+            },
+            "partially_supported": {
+              "partially_supported": 1,
+              "supported": 1
+            },
+            "supported": {
+              "supported": 38
+            }
+          },
+          "semantic_exact_accuracy": 0.9791666666666666,
+          "semantic_exact_count": 47
+        },
+        "reference_limitations": {
+          "human_needs_review_examples": 0,
+          "human_unclear_requirement_examples": 0,
+          "human_unsupported_examples": 0,
+          "note": "High exact agreement does not validate judge behavior for classes absent from the 48-claim human reference set."
+        }
+      },
+      "checkpoint_config_id": "production-quality-checkpoint-v1",
+      "headline": {
+        "automated_judge_individual_exact_accuracy": 0.9583333333333334,
+        "automated_judge_requirement_accuracy": 1.0,
+        "automated_judge_semantic_exact_accuracy": 0.9791666666666666,
+        "human_response_behavior_accuracy": 1.0,
+        "human_semantic_abstention_success_rate": 1.0,
+        "human_semantic_any_support_rate": 1.0,
+        "human_semantic_fully_supported_rate": 0.95,
+        "human_semantic_unsupported_rate": 0.0,
+        "production_rag_selected_primary_hit_rate": 0.8333333333333334,
+        "production_rag_valid_reference_ratio": 1.0,
+        "structural_false_accept_rate": 0.125,
+        "structural_withholding_success_rate": 0.875,
+        "unsafe_substantive_answer_rate": 0.0
+      },
+      "human_response_behavior": {
+        "by_language_pair": {
+          "en->en": {
+            "abstention_count": 2,
+            "answer_delivery_rate": 1.0,
+            "behavior_accuracy": 1.0,
+            "completion_rate": 1.0,
+            "expected_answer_count": 2,
+            "expected_partial_count": 0,
+            "expected_withhold_count": 2,
+            "full_abstention_on_partial_count": 0,
+            "full_abstention_on_partial_rate": 0.0,
+            "needs_review_count": 0,
+            "partial_answer_count": 0,
+            "partial_answer_on_withhold_count": 0,
+            "partial_answer_on_withhold_rate": 0.0,
+            "partial_response_success_count": 0,
+            "partial_response_success_rate": 0.0,
+            "question_count": 4,
+            "reviewed_count": 4,
+            "safe_abstention_despite_structural_accept_count": 0,
+            "safe_abstention_despite_structural_accept_rate": 0.0,
+            "semantic_abstention_success_rate": 1.0,
+            "structural_behavior_agreement_rate": 1.0,
+            "structural_false_accept_count": 0,
+            "substantive_answer_count": 2,
+            "unnecessary_abstention_count": 0,
+            "unnecessary_abstention_rate": 0.0,
+            "unqualified_substantive_on_partial_count": 0,
+            "unqualified_substantive_on_partial_rate": 0.0,
+            "unsafe_substantive_answer_count": 0,
+            "unsafe_substantive_answer_rate": 0.0
+          },
+          "en->ne": {
+            "abstention_count": 2,
+            "answer_delivery_rate": 1.0,
+            "behavior_accuracy": 1.0,
+            "completion_rate": 1.0,
+            "expected_answer_count": 2,
+            "expected_partial_count": 0,
+            "expected_withhold_count": 2,
+            "full_abstention_on_partial_count": 0,
+            "full_abstention_on_partial_rate": 0.0,
+            "needs_review_count": 0,
+            "partial_answer_count": 0,
+            "partial_answer_on_withhold_count": 0,
+            "partial_answer_on_withhold_rate": 0.0,
+            "partial_response_success_count": 0,
+            "partial_response_success_rate": 0.0,
+            "question_count": 4,
+            "reviewed_count": 4,
+            "safe_abstention_despite_structural_accept_count": 0,
+            "safe_abstention_despite_structural_accept_rate": 0.0,
+            "semantic_abstention_success_rate": 1.0,
+            "structural_behavior_agreement_rate": 1.0,
+            "structural_false_accept_count": 0,
+            "substantive_answer_count": 2,
+            "unnecessary_abstention_count": 0,
+            "unnecessary_abstention_rate": 0.0,
+            "unqualified_substantive_on_partial_count": 0,
+            "unqualified_substantive_on_partial_rate": 0.0,
+            "unsafe_substantive_answer_count": 0,
+            "unsafe_substantive_answer_rate": 0.0
+          },
+          "ne->en": {
+            "abstention_count": 2,
+            "answer_delivery_rate": 1.0,
+            "behavior_accuracy": 1.0,
+            "completion_rate": 1.0,
+            "expected_answer_count": 2,
+            "expected_partial_count": 0,
+            "expected_withhold_count": 2,
+            "full_abstention_on_partial_count": 0,
+            "full_abstention_on_partial_rate": 0.0,
+            "needs_review_count": 0,
+            "partial_answer_count": 0,
+            "partial_answer_on_withhold_count": 0,
+            "partial_answer_on_withhold_rate": 0.0,
+            "partial_response_success_count": 0,
+            "partial_response_success_rate": 0.0,
+            "question_count": 4,
+            "reviewed_count": 4,
+            "safe_abstention_despite_structural_accept_count": 0,
+            "safe_abstention_despite_structural_accept_rate": 0.0,
+            "semantic_abstention_success_rate": 1.0,
+            "structural_behavior_agreement_rate": 1.0,
+            "structural_false_accept_count": 0,
+            "substantive_answer_count": 2,
+            "unnecessary_abstention_count": 0,
+            "unnecessary_abstention_rate": 0.0,
+            "unqualified_substantive_on_partial_count": 0,
+            "unqualified_substantive_on_partial_rate": 0.0,
+            "unsafe_substantive_answer_count": 0,
+            "unsafe_substantive_answer_rate": 0.0
+          },
+          "ne->ne": {
+            "abstention_count": 2,
+            "answer_delivery_rate": 1.0,
+            "behavior_accuracy": 1.0,
+            "completion_rate": 1.0,
+            "expected_answer_count": 2,
+            "expected_partial_count": 0,
+            "expected_withhold_count": 2,
+            "full_abstention_on_partial_count": 0,
+            "full_abstention_on_partial_rate": 0.0,
+            "needs_review_count": 0,
+            "partial_answer_count": 0,
+            "partial_answer_on_withhold_count": 0,
+            "partial_answer_on_withhold_rate": 0.0,
+            "partial_response_success_count": 0,
+            "partial_response_success_rate": 0.0,
+            "question_count": 4,
+            "reviewed_count": 4,
+            "safe_abstention_despite_structural_accept_count": 1,
+            "safe_abstention_despite_structural_accept_rate": 1.0,
+            "semantic_abstention_success_rate": 1.0,
+            "structural_behavior_agreement_rate": 0.75,
+            "structural_false_accept_count": 1,
+            "substantive_answer_count": 2,
+            "unnecessary_abstention_count": 0,
+            "unnecessary_abstention_rate": 0.0,
+            "unqualified_substantive_on_partial_count": 0,
+            "unqualified_substantive_on_partial_rate": 0.0,
+            "unsafe_substantive_answer_count": 0,
+            "unsafe_substantive_answer_rate": 0.0
+          }
+        },
+        "overall": {
+          "abstention_count": 8,
+          "answer_delivery_rate": 1.0,
+          "behavior_accuracy": 1.0,
+          "completion_rate": 1.0,
+          "expected_answer_count": 8,
+          "expected_partial_count": 0,
+          "expected_withhold_count": 8,
+          "full_abstention_on_partial_count": 0,
+          "full_abstention_on_partial_rate": 0.0,
+          "needs_review_count": 0,
+          "partial_answer_count": 0,
+          "partial_answer_on_withhold_count": 0,
+          "partial_answer_on_withhold_rate": 0.0,
+          "partial_response_success_count": 0,
+          "partial_response_success_rate": 0.0,
+          "question_count": 16,
+          "reviewed_count": 16,
+          "safe_abstention_despite_structural_accept_count": 1,
+          "safe_abstention_despite_structural_accept_rate": 1.0,
+          "semantic_abstention_success_rate": 1.0,
+          "structural_behavior_agreement_rate": 0.9375,
+          "structural_false_accept_count": 1,
+          "substantive_answer_count": 8,
+          "unnecessary_abstention_count": 0,
+          "unnecessary_abstention_rate": 0.0,
+          "unqualified_substantive_on_partial_count": 0,
+          "unqualified_substantive_on_partial_rate": 0.0,
+          "unsafe_substantive_answer_count": 0,
+          "unsafe_substantive_answer_rate": 0.0
+        },
+        "question_count": 16
+      },
+      "human_semantic_citation_review": {
+        "by_language_pair": {
+          "en->en": {
+            "at_least_partially_supported_rate": 1.0,
+            "citation_not_required_claim_count": 2,
+            "citation_required_claim_count": 10,
+            "citation_required_with_citation_count": 10,
+            "citation_requirement_unclear_count": 0,
+            "claim_count": 12,
+            "completion_rate": 1.0,
+            "fully_supported_rate": 0.9,
+            "individual_at_least_partial_support_rate": 1.0,
+            "individual_citation_count": 12,
+            "individual_decided_count": 12,
+            "individual_full_support_rate": 0.9166666666666666,
+            "individual_needs_review_count": 0,
+            "individual_partially_supported_count": 1,
+            "individual_supported_count": 11,
+            "individual_unsupported_count": 0,
+            "individual_unsupported_rate": 0.0,
+            "not_factual_claim_count": 2,
+            "partially_supported_claim_count": 1,
+            "required_citation_coverage": 1.0,
+            "reviewed_claim_count": 12,
+            "semantic_decided_claim_count": 10,
+            "semantic_needs_review_count": 0,
+            "supported_claim_count": 9,
+            "unnecessary_citation_count": 0,
+            "unnecessary_citation_rate": 0.0,
+            "unsupported_claim_count": 0,
+            "unsupported_rate": 0.0
+          },
+          "en->ne": {
+            "at_least_partially_supported_rate": 1.0,
+            "citation_not_required_claim_count": 2,
+            "citation_required_claim_count": 10,
+            "citation_required_with_citation_count": 10,
+            "citation_requirement_unclear_count": 0,
+            "claim_count": 12,
+            "completion_rate": 1.0,
+            "fully_supported_rate": 1.0,
+            "individual_at_least_partial_support_rate": 0.9166666666666666,
+            "individual_citation_count": 12,
+            "individual_decided_count": 12,
+            "individual_full_support_rate": 0.9166666666666666,
+            "individual_needs_review_count": 0,
+            "individual_partially_supported_count": 0,
+            "individual_supported_count": 11,
+            "individual_unsupported_count": 1,
+            "individual_unsupported_rate": 0.08333333333333333,
+            "not_factual_claim_count": 2,
+            "partially_supported_claim_count": 0,
+            "required_citation_coverage": 1.0,
+            "reviewed_claim_count": 12,
+            "semantic_decided_claim_count": 10,
+            "semantic_needs_review_count": 0,
+            "supported_claim_count": 10,
+            "unnecessary_citation_count": 0,
+            "unnecessary_citation_rate": 0.0,
+            "unsupported_claim_count": 0,
+            "unsupported_rate": 0.0
+          },
+          "ne->en": {
+            "at_least_partially_supported_rate": 1.0,
+            "citation_not_required_claim_count": 2,
+            "citation_required_claim_count": 10,
+            "citation_required_with_citation_count": 10,
+            "citation_requirement_unclear_count": 0,
+            "claim_count": 12,
+            "completion_rate": 1.0,
+            "fully_supported_rate": 1.0,
+            "individual_at_least_partial_support_rate": 1.0,
+            "individual_citation_count": 12,
+            "individual_decided_count": 12,
+            "individual_full_support_rate": 1.0,
+            "individual_needs_review_count": 0,
+            "individual_partially_supported_count": 0,
+            "individual_supported_count": 12,
+            "individual_unsupported_count": 0,
+            "individual_unsupported_rate": 0.0,
+            "not_factual_claim_count": 2,
+            "partially_supported_claim_count": 0,
+            "required_citation_coverage": 1.0,
+            "reviewed_claim_count": 12,
+            "semantic_decided_claim_count": 10,
+            "semantic_needs_review_count": 0,
+            "supported_claim_count": 10,
+            "unnecessary_citation_count": 0,
+            "unnecessary_citation_rate": 0.0,
+            "unsupported_claim_count": 0,
+            "unsupported_rate": 0.0
+          },
+          "ne->ne": {
+            "at_least_partially_supported_rate": 1.0,
+            "citation_not_required_claim_count": 2,
+            "citation_required_claim_count": 10,
+            "citation_required_with_citation_count": 10,
+            "citation_requirement_unclear_count": 0,
+            "claim_count": 12,
+            "completion_rate": 1.0,
+            "fully_supported_rate": 0.9,
+            "individual_at_least_partial_support_rate": 1.0,
+            "individual_citation_count": 12,
+            "individual_decided_count": 12,
+            "individual_full_support_rate": 0.8333333333333334,
+            "individual_needs_review_count": 0,
+            "individual_partially_supported_count": 2,
+            "individual_supported_count": 10,
+            "individual_unsupported_count": 0,
+            "individual_unsupported_rate": 0.0,
+            "not_factual_claim_count": 2,
+            "partially_supported_claim_count": 1,
+            "required_citation_coverage": 1.0,
+            "reviewed_claim_count": 12,
+            "semantic_decided_claim_count": 10,
+            "semantic_needs_review_count": 0,
+            "supported_claim_count": 9,
+            "unnecessary_citation_count": 0,
+            "unnecessary_citation_rate": 0.0,
+            "unsupported_claim_count": 0,
+            "unsupported_rate": 0.0
+          }
+        },
+        "claim_count": 48,
+        "overall": {
+          "at_least_partially_supported_rate": 1.0,
+          "citation_not_required_claim_count": 8,
+          "citation_required_claim_count": 40,
+          "citation_required_with_citation_count": 40,
+          "citation_requirement_unclear_count": 0,
+          "claim_count": 48,
+          "completion_rate": 1.0,
+          "fully_supported_rate": 0.95,
+          "individual_at_least_partial_support_rate": 0.9791666666666666,
+          "individual_citation_count": 48,
+          "individual_decided_count": 48,
+          "individual_full_support_rate": 0.9166666666666666,
+          "individual_needs_review_count": 0,
+          "individual_partially_supported_count": 3,
+          "individual_supported_count": 44,
+          "individual_unsupported_count": 1,
+          "individual_unsupported_rate": 0.020833333333333332,
+          "not_factual_claim_count": 8,
+          "partially_supported_claim_count": 2,
+          "required_citation_coverage": 1.0,
+          "reviewed_claim_count": 48,
+          "semantic_decided_claim_count": 40,
+          "semantic_needs_review_count": 0,
+          "supported_claim_count": 38,
+          "unnecessary_citation_count": 0,
+          "unnecessary_citation_rate": 0.0,
+          "unsupported_claim_count": 0,
+          "unsupported_rate": 0.0
+        },
+        "sample_config_id": "production-rag-v2-human-review-v1",
+        "sampling_note": "The human semantic set is a deterministic stratified diagnostic sample, not a population-proportional random sample of all production claims."
+      },
+      "insufficient_evidence_structural": {
+        "by_case_type": {
+          "answerable_control": {
+            "answer_acceptance_rate": 1.0,
+            "correct_decision_count": 8,
+            "decision_accuracy": 1.0,
+            "expected_answer_count": 8,
+            "expected_partial_count": 0,
+            "expected_withhold_count": 0,
+            "guard_false_accept_count": 0,
+            "guard_false_accept_rate": 0.0,
+            "guard_false_withhold_count": 0,
+            "guard_false_withhold_rate": 0.0,
+            "partial_case_acceptance_rate": 0.0,
+            "question_count": 8,
+            "withholding_success_rate": 0.0
+          },
+          "out_of_corpus_document": {
+            "answer_acceptance_rate": 0.0,
+            "correct_decision_count": 4,
+            "decision_accuracy": 1.0,
+            "expected_answer_count": 0,
+            "expected_partial_count": 0,
+            "expected_withhold_count": 4,
+            "guard_false_accept_count": 0,
+            "guard_false_accept_rate": 0.0,
+            "guard_false_withhold_count": 0,
+            "guard_false_withhold_rate": 0.0,
+            "partial_case_acceptance_rate": 0.0,
+            "question_count": 4,
+            "withholding_success_rate": 1.0
+          },
+          "out_of_corpus_period": {
+            "answer_acceptance_rate": 0.0,
+            "correct_decision_count": 3,
+            "decision_accuracy": 0.75,
+            "expected_answer_count": 0,
+            "expected_partial_count": 0,
+            "expected_withhold_count": 4,
+            "guard_false_accept_count": 1,
+            "guard_false_accept_rate": 0.25,
+            "guard_false_withhold_count": 0,
+            "guard_false_withhold_rate": 0.0,
+            "partial_case_acceptance_rate": 0.0,
+            "question_count": 4,
+            "withholding_success_rate": 0.75
+          }
+        },
+        "by_language_pair": {
+          "en->en": {
+            "answer_acceptance_rate": 1.0,
+            "correct_decision_count": 4,
+            "decision_accuracy": 1.0,
+            "expected_answer_count": 2,
+            "expected_partial_count": 0,
+            "expected_withhold_count": 2,
+            "guard_false_accept_count": 0,
+            "guard_false_accept_rate": 0.0,
+            "guard_false_withhold_count": 0,
+            "guard_false_withhold_rate": 0.0,
+            "partial_case_acceptance_rate": 0.0,
+            "question_count": 4,
+            "withholding_success_rate": 1.0
+          },
+          "en->ne": {
+            "answer_acceptance_rate": 1.0,
+            "correct_decision_count": 4,
+            "decision_accuracy": 1.0,
+            "expected_answer_count": 2,
+            "expected_partial_count": 0,
+            "expected_withhold_count": 2,
+            "guard_false_accept_count": 0,
+            "guard_false_accept_rate": 0.0,
+            "guard_false_withhold_count": 0,
+            "guard_false_withhold_rate": 0.0,
+            "partial_case_acceptance_rate": 0.0,
+            "question_count": 4,
+            "withholding_success_rate": 1.0
+          },
+          "ne->en": {
+            "answer_acceptance_rate": 1.0,
+            "correct_decision_count": 4,
+            "decision_accuracy": 1.0,
+            "expected_answer_count": 2,
+            "expected_partial_count": 0,
+            "expected_withhold_count": 2,
+            "guard_false_accept_count": 0,
+            "guard_false_accept_rate": 0.0,
+            "guard_false_withhold_count": 0,
+            "guard_false_withhold_rate": 0.0,
+            "partial_case_acceptance_rate": 0.0,
+            "question_count": 4,
+            "withholding_success_rate": 1.0
+          },
+          "ne->ne": {
+            "answer_acceptance_rate": 1.0,
+            "correct_decision_count": 3,
+            "decision_accuracy": 0.75,
+            "expected_answer_count": 2,
+            "expected_partial_count": 0,
+            "expected_withhold_count": 2,
+            "guard_false_accept_count": 1,
+            "guard_false_accept_rate": 0.5,
+            "guard_false_withhold_count": 0,
+            "guard_false_withhold_rate": 0.0,
+            "partial_case_acceptance_rate": 0.0,
+            "question_count": 4,
+            "withholding_success_rate": 0.5
+          }
+        },
+        "not_yet_benchmarked_case_types": [
+          "partial_evidence",
+          "mixed_supported_unsupported"
+        ],
+        "overall": {
+          "answer_acceptance_rate": 1.0,
+          "correct_decision_count": 15,
+          "decision_accuracy": 0.9375,
+          "expected_answer_count": 8,
+          "expected_partial_count": 0,
+          "expected_withhold_count": 8,
+          "guard_false_accept_count": 1,
+          "guard_false_accept_rate": 0.125,
+          "guard_false_withhold_count": 0,
+          "guard_false_withhold_rate": 0.0,
+          "partial_case_acceptance_rate": 0.0,
+          "question_count": 16,
+          "withholding_success_rate": 0.875
+        },
+        "present_case_types": [
+          "answerable_control",
+          "out_of_corpus_document",
+          "out_of_corpus_period"
+        ],
+        "question_count": 16
+      },
+      "measured_remaining_work": [
+        "NE->EN retrieval remains the weakest production language direction in the existing structural benchmark.",
+        "The automated semantic judge has not yet been validated against human unsupported, needs-review, or unclear citation-requirement examples.",
+        "The insufficient-evidence benchmark does not yet contain partial-evidence or mixed supported/unsupported cases.",
+        "The structural evidence guard can classify a semantically abstaining response as accepted when that response contains a valid citation.",
+        "Human semantic review identified numerical fidelity, truncated evidence, OCR corruption, and individual over-citation as remaining diagnostic failure modes."
+      ],
+      "production_rag": {
+        "by_language_pair": {
+          "en->en": {
+            "acceptance_rate": 1.0,
+            "avg_invalid_citations": 0.0,
+            "avg_rendered_sources": 3.0833333333333335,
+            "avg_selected_context": 5.0,
+            "avg_valid_citations": 3.0833333333333335,
+            "cited_primary_hit_rate": 0.8333333333333334,
+            "cited_relevant_precision": 0.5333333333333333,
+            "cited_relevant_recall": 0.7916666666666666,
+            "question_count": 12,
+            "selected_primary_hit_rate": 0.8333333333333334,
+            "selected_relevant_recall": 0.7916666666666666,
+            "valid_reference_ratio": 1.0,
+            "withholding_rate": 0.0
+          },
+          "en->ne": {
+            "acceptance_rate": 1.0,
+            "avg_invalid_citations": 0.0,
+            "avg_rendered_sources": 4.0,
+            "avg_selected_context": 5.0,
+            "avg_valid_citations": 4.0,
+            "cited_primary_hit_rate": 0.8333333333333334,
+            "cited_relevant_precision": 0.34722222222222227,
+            "cited_relevant_recall": 0.7777777777777778,
+            "question_count": 6,
+            "selected_primary_hit_rate": 0.8333333333333334,
+            "selected_relevant_recall": 0.8611111111111112,
+            "valid_reference_ratio": 1.0,
+            "withholding_rate": 0.0
+          },
+          "ne->en": {
+            "acceptance_rate": 1.0,
+            "avg_invalid_citations": 0.0,
+            "avg_rendered_sources": 2.5,
+            "avg_selected_context": 5.0,
+            "avg_valid_citations": 2.5,
+            "cited_primary_hit_rate": 0.6666666666666666,
+            "cited_relevant_precision": 0.5388888888888889,
+            "cited_relevant_recall": 0.7222222222222222,
+            "question_count": 6,
+            "selected_primary_hit_rate": 0.6666666666666666,
+            "selected_relevant_recall": 0.7222222222222222,
+            "valid_reference_ratio": 1.0,
+            "withholding_rate": 0.0
+          },
+          "ne->ne": {
+            "acceptance_rate": 1.0,
+            "avg_invalid_citations": 0.0,
+            "avg_rendered_sources": 3.6666666666666665,
+            "avg_selected_context": 5.0,
+            "avg_valid_citations": 3.6666666666666665,
+            "cited_primary_hit_rate": 1.0,
+            "cited_relevant_precision": 0.4583333333333333,
+            "cited_relevant_recall": 0.9166666666666666,
+            "question_count": 6,
+            "selected_primary_hit_rate": 1.0,
+            "selected_relevant_recall": 1.0,
+            "valid_reference_ratio": 1.0,
+            "withholding_rate": 0.0
+          }
+        },
+        "overall": {
+          "acceptance_rate": 1.0,
+          "avg_invalid_citations": 0.0,
+          "avg_rendered_sources": 3.2666666666666666,
+          "avg_selected_context": 5.0,
+          "avg_valid_citations": 3.2666666666666666,
+          "cited_primary_hit_rate": 0.8333333333333334,
+          "cited_relevant_precision": 0.4822222222222222,
+          "cited_relevant_recall": 0.8,
+          "selected_primary_hit_rate": 0.8333333333333334,
+          "selected_relevant_recall": 0.8333333333333334,
+          "valid_reference_ratio": 1.0,
+          "withholding_rate": 0.0
+        },
+        "question_count": 30,
+        "run_config_id": "production-rag-v2-interactions"
+      },
+      "rerun_policy": {
+        "hosted_production_rerun_performed": false,
+        "official_production_benchmark_retained": true,
+        "reason": "The production retrieval, reranking, context-selection, prompt, Gemini generation, citation-processing, and evidence-guard stack did not change during this evaluation cycle. A new stochastic hosted generation run would therefore not measure a production intervention."
+      },
+      "schema_version": 1
+    },
+    "checkpoint_config_id": "production-quality-checkpoint-v2",
+    "cycle_extensions": {
+      "human_answer_quality": {
+        "by_language_pair": {
+          "en->en": {
+            "acceptable_answer_count": 8,
+            "acceptable_answer_rate": 0.6666666666666666,
+            "at_least_mostly_complete_rate": 0.6666666666666666,
+            "complete_count": 8,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 0.6666666666666666,
+            "fully_faithful_count": 11,
+            "fully_faithful_rate": 0.9166666666666666,
+            "incomplete_count": 4,
+            "incomplete_rate": 0.3333333333333333,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 1,
+            "mostly_complete_count": 0,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 12,
+            "reviewed_count": 12,
+            "scorable_rate": 1.0,
+            "scored_count": 12,
+            "strong_answer_count": 8,
+            "strong_answer_rate": 0.6666666666666666
+          },
+          "en->ne": {
+            "acceptable_answer_count": 5,
+            "acceptable_answer_rate": 0.8333333333333334,
+            "at_least_mostly_complete_rate": 0.8333333333333334,
+            "complete_count": 4,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 0.6666666666666666,
+            "fully_faithful_count": 6,
+            "fully_faithful_rate": 1.0,
+            "incomplete_count": 1,
+            "incomplete_rate": 0.16666666666666666,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 0,
+            "mostly_complete_count": 1,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 6,
+            "reviewed_count": 6,
+            "scorable_rate": 1.0,
+            "scored_count": 6,
+            "strong_answer_count": 4,
+            "strong_answer_rate": 0.6666666666666666
+          },
+          "ne->en": {
+            "acceptable_answer_count": 5,
+            "acceptable_answer_rate": 0.8333333333333334,
+            "at_least_mostly_complete_rate": 0.8333333333333334,
+            "complete_count": 3,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 0.5,
+            "fully_faithful_count": 6,
+            "fully_faithful_rate": 1.0,
+            "incomplete_count": 1,
+            "incomplete_rate": 0.16666666666666666,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 0,
+            "mostly_complete_count": 2,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 6,
+            "reviewed_count": 6,
+            "scorable_rate": 1.0,
+            "scored_count": 6,
+            "strong_answer_count": 3,
+            "strong_answer_rate": 0.5
+          },
+          "ne->ne": {
+            "acceptable_answer_count": 6,
+            "acceptable_answer_rate": 1.0,
+            "at_least_mostly_complete_rate": 1.0,
+            "complete_count": 6,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 1.0,
+            "fully_faithful_count": 5,
+            "fully_faithful_rate": 0.8333333333333334,
+            "incomplete_count": 0,
+            "incomplete_rate": 0.0,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 1,
+            "mostly_complete_count": 0,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 6,
+            "reviewed_count": 6,
+            "scorable_rate": 1.0,
+            "scored_count": 6,
+            "strong_answer_count": 5,
+            "strong_answer_rate": 0.8333333333333334
+          }
+        },
+        "interpretation": "Completeness is evaluated against the manually verified gold-relevant evidence. Factual fidelity is evaluated against exact selected and gold passages. The two dimensions are intentionally reported separately.",
+        "overall": {
+          "acceptable_answer_count": 24,
+          "acceptable_answer_rate": 0.8,
+          "at_least_mostly_complete_rate": 0.8,
+          "complete_count": 21,
+          "completion_rate": 1.0,
+          "fully_complete_rate": 0.7,
+          "fully_faithful_count": 28,
+          "fully_faithful_rate": 0.9333333333333333,
+          "incomplete_count": 6,
+          "incomplete_rate": 0.2,
+          "major_factual_issue_count": 0,
+          "major_factual_issue_rate": 0.0,
+          "minor_factual_issue_count": 2,
+          "mostly_complete_count": 3,
+          "needs_review_count": 0,
+          "no_major_factual_error_rate": 1.0,
+          "question_count": 30,
+          "reviewed_count": 30,
+          "scorable_rate": 1.0,
+          "scored_count": 30,
+          "strong_answer_count": 20,
+          "strong_answer_rate": 0.6666666666666666
+        },
+        "question_count": 30
+      },
+      "partial_mixed_evidence": {
+        "human_response_behavior": {
+          "by_language_pair": {
+            "en->en": {
+              "abstention_count": 0,
+              "answer_delivery_rate": 0.0,
+              "behavior_accuracy": 1.0,
+              "completion_rate": 1.0,
+              "expected_answer_count": 0,
+              "expected_partial_count": 2,
+              "expected_withhold_count": 0,
+              "full_abstention_on_partial_count": 0,
+              "full_abstention_on_partial_rate": 0.0,
+              "needs_review_count": 0,
+              "partial_answer_count": 2,
+              "partial_answer_on_withhold_count": 0,
+              "partial_answer_on_withhold_rate": 0.0,
+              "partial_response_success_count": 2,
+              "partial_response_success_rate": 1.0,
+              "question_count": 2,
+              "reviewed_count": 2,
+              "safe_abstention_despite_structural_accept_count": 0,
+              "safe_abstention_despite_structural_accept_rate": 0.0,
+              "semantic_abstention_success_rate": 0.0,
+              "structural_behavior_agreement_rate": 1.0,
+              "structural_false_accept_count": 0,
+              "substantive_answer_count": 0,
+              "unnecessary_abstention_count": 0,
+              "unnecessary_abstention_rate": 0.0,
+              "unqualified_substantive_on_partial_count": 0,
+              "unqualified_substantive_on_partial_rate": 0.0,
+              "unsafe_substantive_answer_count": 0,
+              "unsafe_substantive_answer_rate": 0.0
+            },
+            "en->ne": {
+              "abstention_count": 0,
+              "answer_delivery_rate": 0.0,
+              "behavior_accuracy": 1.0,
+              "completion_rate": 1.0,
+              "expected_answer_count": 0,
+              "expected_partial_count": 2,
+              "expected_withhold_count": 0,
+              "full_abstention_on_partial_count": 0,
+              "full_abstention_on_partial_rate": 0.0,
+              "needs_review_count": 0,
+              "partial_answer_count": 2,
+              "partial_answer_on_withhold_count": 0,
+              "partial_answer_on_withhold_rate": 0.0,
+              "partial_response_success_count": 2,
+              "partial_response_success_rate": 1.0,
+              "question_count": 2,
+              "reviewed_count": 2,
+              "safe_abstention_despite_structural_accept_count": 0,
+              "safe_abstention_despite_structural_accept_rate": 0.0,
+              "semantic_abstention_success_rate": 0.0,
+              "structural_behavior_agreement_rate": 1.0,
+              "structural_false_accept_count": 0,
+              "substantive_answer_count": 0,
+              "unnecessary_abstention_count": 0,
+              "unnecessary_abstention_rate": 0.0,
+              "unqualified_substantive_on_partial_count": 0,
+              "unqualified_substantive_on_partial_rate": 0.0,
+              "unsafe_substantive_answer_count": 0,
+              "unsafe_substantive_answer_rate": 0.0
+            },
+            "ne->en": {
+              "abstention_count": 0,
+              "answer_delivery_rate": 0.0,
+              "behavior_accuracy": 1.0,
+              "completion_rate": 1.0,
+              "expected_answer_count": 0,
+              "expected_partial_count": 2,
+              "expected_withhold_count": 0,
+              "full_abstention_on_partial_count": 0,
+              "full_abstention_on_partial_rate": 0.0,
+              "needs_review_count": 0,
+              "partial_answer_count": 2,
+              "partial_answer_on_withhold_count": 0,
+              "partial_answer_on_withhold_rate": 0.0,
+              "partial_response_success_count": 2,
+              "partial_response_success_rate": 1.0,
+              "question_count": 2,
+              "reviewed_count": 2,
+              "safe_abstention_despite_structural_accept_count": 0,
+              "safe_abstention_despite_structural_accept_rate": 0.0,
+              "semantic_abstention_success_rate": 0.0,
+              "structural_behavior_agreement_rate": 1.0,
+              "structural_false_accept_count": 0,
+              "substantive_answer_count": 0,
+              "unnecessary_abstention_count": 0,
+              "unnecessary_abstention_rate": 0.0,
+              "unqualified_substantive_on_partial_count": 0,
+              "unqualified_substantive_on_partial_rate": 0.0,
+              "unsafe_substantive_answer_count": 0,
+              "unsafe_substantive_answer_rate": 0.0
+            },
+            "ne->ne": {
+              "abstention_count": 0,
+              "answer_delivery_rate": 0.0,
+              "behavior_accuracy": 1.0,
+              "completion_rate": 1.0,
+              "expected_answer_count": 0,
+              "expected_partial_count": 2,
+              "expected_withhold_count": 0,
+              "full_abstention_on_partial_count": 0,
+              "full_abstention_on_partial_rate": 0.0,
+              "needs_review_count": 0,
+              "partial_answer_count": 2,
+              "partial_answer_on_withhold_count": 0,
+              "partial_answer_on_withhold_rate": 0.0,
+              "partial_response_success_count": 2,
+              "partial_response_success_rate": 1.0,
+              "question_count": 2,
+              "reviewed_count": 2,
+              "safe_abstention_despite_structural_accept_count": 0,
+              "safe_abstention_despite_structural_accept_rate": 0.0,
+              "semantic_abstention_success_rate": 0.0,
+              "structural_behavior_agreement_rate": 1.0,
+              "structural_false_accept_count": 0,
+              "substantive_answer_count": 0,
+              "unnecessary_abstention_count": 0,
+              "unnecessary_abstention_rate": 0.0,
+              "unqualified_substantive_on_partial_count": 0,
+              "unqualified_substantive_on_partial_rate": 0.0,
+              "unsafe_substantive_answer_count": 0,
+              "unsafe_substantive_answer_rate": 0.0
+            }
+          },
+          "overall": {
+            "abstention_count": 0,
+            "answer_delivery_rate": 0.0,
+            "behavior_accuracy": 1.0,
+            "completion_rate": 1.0,
+            "expected_answer_count": 0,
+            "expected_partial_count": 8,
+            "expected_withhold_count": 0,
+            "full_abstention_on_partial_count": 0,
+            "full_abstention_on_partial_rate": 0.0,
+            "needs_review_count": 0,
+            "partial_answer_count": 8,
+            "partial_answer_on_withhold_count": 0,
+            "partial_answer_on_withhold_rate": 0.0,
+            "partial_response_success_count": 8,
+            "partial_response_success_rate": 1.0,
+            "question_count": 8,
+            "reviewed_count": 8,
+            "safe_abstention_despite_structural_accept_count": 0,
+            "safe_abstention_despite_structural_accept_rate": 0.0,
+            "semantic_abstention_success_rate": 0.0,
+            "structural_behavior_agreement_rate": 1.0,
+            "structural_false_accept_count": 0,
+            "substantive_answer_count": 0,
+            "unnecessary_abstention_count": 0,
+            "unnecessary_abstention_rate": 0.0,
+            "unqualified_substantive_on_partial_count": 0,
+            "unqualified_substantive_on_partial_rate": 0.0,
+            "unsafe_substantive_answer_count": 0,
+            "unsafe_substantive_answer_rate": 0.0
+          }
+        },
+        "interpretation": "The extension evaluates partial_evidence and mixed_supported_unsupported cases. Structural acceptance is expected so the supported portion remains visible; human review determines whether unsupported portions are explicitly limited.",
+        "question_count": 8,
+        "structural": {
+          "by_case_type": {
+            "mixed_supported_unsupported": {
+              "answer_acceptance_rate": 0.0,
+              "correct_decision_count": 4,
+              "decision_accuracy": 1.0,
+              "expected_answer_count": 0,
+              "expected_partial_count": 4,
+              "expected_withhold_count": 0,
+              "guard_false_accept_count": 0,
+              "guard_false_accept_rate": 0.0,
+              "guard_false_withhold_count": 0,
+              "guard_false_withhold_rate": 0.0,
+              "partial_case_acceptance_rate": 1.0,
+              "question_count": 4,
+              "withholding_success_rate": 0.0
+            },
+            "partial_evidence": {
+              "answer_acceptance_rate": 0.0,
+              "correct_decision_count": 4,
+              "decision_accuracy": 1.0,
+              "expected_answer_count": 0,
+              "expected_partial_count": 4,
+              "expected_withhold_count": 0,
+              "guard_false_accept_count": 0,
+              "guard_false_accept_rate": 0.0,
+              "guard_false_withhold_count": 0,
+              "guard_false_withhold_rate": 0.0,
+              "partial_case_acceptance_rate": 1.0,
+              "question_count": 4,
+              "withholding_success_rate": 0.0
+            }
+          },
+          "by_language_pair": {
+            "en->en": {
+              "answer_acceptance_rate": 0.0,
+              "correct_decision_count": 2,
+              "decision_accuracy": 1.0,
+              "expected_answer_count": 0,
+              "expected_partial_count": 2,
+              "expected_withhold_count": 0,
+              "guard_false_accept_count": 0,
+              "guard_false_accept_rate": 0.0,
+              "guard_false_withhold_count": 0,
+              "guard_false_withhold_rate": 0.0,
+              "partial_case_acceptance_rate": 1.0,
+              "question_count": 2,
+              "withholding_success_rate": 0.0
+            },
+            "en->ne": {
+              "answer_acceptance_rate": 0.0,
+              "correct_decision_count": 2,
+              "decision_accuracy": 1.0,
+              "expected_answer_count": 0,
+              "expected_partial_count": 2,
+              "expected_withhold_count": 0,
+              "guard_false_accept_count": 0,
+              "guard_false_accept_rate": 0.0,
+              "guard_false_withhold_count": 0,
+              "guard_false_withhold_rate": 0.0,
+              "partial_case_acceptance_rate": 1.0,
+              "question_count": 2,
+              "withholding_success_rate": 0.0
+            },
+            "ne->en": {
+              "answer_acceptance_rate": 0.0,
+              "correct_decision_count": 2,
+              "decision_accuracy": 1.0,
+              "expected_answer_count": 0,
+              "expected_partial_count": 2,
+              "expected_withhold_count": 0,
+              "guard_false_accept_count": 0,
+              "guard_false_accept_rate": 0.0,
+              "guard_false_withhold_count": 0,
+              "guard_false_withhold_rate": 0.0,
+              "partial_case_acceptance_rate": 1.0,
+              "question_count": 2,
+              "withholding_success_rate": 0.0
+            },
+            "ne->ne": {
+              "answer_acceptance_rate": 0.0,
+              "correct_decision_count": 2,
+              "decision_accuracy": 1.0,
+              "expected_answer_count": 0,
+              "expected_partial_count": 2,
+              "expected_withhold_count": 0,
+              "guard_false_accept_count": 0,
+              "guard_false_accept_rate": 0.0,
+              "guard_false_withhold_count": 0,
+              "guard_false_withhold_rate": 0.0,
+              "partial_case_acceptance_rate": 1.0,
+              "question_count": 2,
+              "withholding_success_rate": 0.0
+            }
+          },
+          "overall": {
+            "answer_acceptance_rate": 0.0,
+            "correct_decision_count": 8,
+            "decision_accuracy": 1.0,
+            "expected_answer_count": 0,
+            "expected_partial_count": 8,
+            "expected_withhold_count": 0,
+            "guard_false_accept_count": 0,
+            "guard_false_accept_rate": 0.0,
+            "guard_false_withhold_count": 0,
+            "guard_false_withhold_rate": 0.0,
+            "partial_case_acceptance_rate": 1.0,
+            "question_count": 8,
+            "withholding_success_rate": 0.0
+          }
+        }
+      },
+      "semantic_judge_hard_cases": {
+        "by_human_citation_requirement_label": {
+          "required": {
+            "citation_requirement_accuracy": 1.0,
+            "citation_requirement_confusion": {
+              "required": {
+                "required": 8
+              }
+            },
+            "citation_requirement_exact_count": 8,
+            "claim_count": 8,
+            "individual_evidence_count": 8,
+            "individual_exact_accuracy": 0.5,
+            "individual_exact_count": 4,
+            "semantic_confusion": {
+              "needs_review": {
+                "partially_supported": 4
+              },
+              "unsupported": {
+                "unsupported": 4
+              }
+            },
+            "semantic_exact_accuracy": 0.5,
+            "semantic_exact_count": 4
+          },
+          "unclear": {
+            "citation_requirement_accuracy": 0.0,
+            "citation_requirement_confusion": {
+              "unclear": {
+                "required": 4
+              }
+            },
+            "citation_requirement_exact_count": 0,
+            "claim_count": 4,
+            "individual_evidence_count": 4,
+            "individual_exact_accuracy": 1.0,
+            "individual_exact_count": 4,
+            "semantic_confusion": {
+              "supported": {
+                "supported": 4
+              }
+            },
+            "semantic_exact_accuracy": 1.0,
+            "semantic_exact_count": 4
+          }
+        },
+        "by_human_semantic_label": {
+          "needs_review": {
+            "citation_requirement_accuracy": 1.0,
+            "citation_requirement_confusion": {
+              "required": {
+                "required": 4
+              }
+            },
+            "citation_requirement_exact_count": 4,
+            "claim_count": 4,
+            "individual_evidence_count": 4,
+            "individual_exact_accuracy": 0.0,
+            "individual_exact_count": 0,
+            "semantic_confusion": {
+              "needs_review": {
+                "partially_supported": 4
+              }
+            },
+            "semantic_exact_accuracy": 0.0,
+            "semantic_exact_count": 0
+          },
+          "supported": {
+            "citation_requirement_accuracy": 0.0,
+            "citation_requirement_confusion": {
+              "unclear": {
+                "required": 4
+              }
+            },
+            "citation_requirement_exact_count": 0,
+            "claim_count": 4,
+            "individual_evidence_count": 4,
+            "individual_exact_accuracy": 1.0,
+            "individual_exact_count": 4,
+            "semantic_confusion": {
+              "supported": {
+                "supported": 4
+              }
+            },
+            "semantic_exact_accuracy": 1.0,
+            "semantic_exact_count": 4
+          },
+          "unsupported": {
+            "citation_requirement_accuracy": 1.0,
+            "citation_requirement_confusion": {
+              "required": {
+                "required": 4
+              }
+            },
+            "citation_requirement_exact_count": 4,
+            "claim_count": 4,
+            "individual_evidence_count": 4,
+            "individual_exact_accuracy": 1.0,
+            "individual_exact_count": 4,
+            "semantic_confusion": {
+              "unsupported": {
+                "unsupported": 4
+              }
+            },
+            "semantic_exact_accuracy": 1.0,
+            "semantic_exact_count": 4
+          }
+        },
+        "by_language_pair": {
+          "en->en": {
+            "citation_requirement_accuracy": 0.6666666666666666,
+            "citation_requirement_confusion": {
+              "required": {
+                "required": 2
+              },
+              "unclear": {
+                "required": 1
+              }
+            },
+            "citation_requirement_exact_count": 2,
+            "claim_count": 3,
+            "individual_evidence_count": 3,
+            "individual_exact_accuracy": 0.6666666666666666,
+            "individual_exact_count": 2,
+            "semantic_confusion": {
+              "needs_review": {
+                "partially_supported": 1
+              },
+              "supported": {
+                "supported": 1
+              },
+              "unsupported": {
+                "unsupported": 1
+              }
+            },
+            "semantic_exact_accuracy": 0.6666666666666666,
+            "semantic_exact_count": 2
+          },
+          "en->ne": {
+            "citation_requirement_accuracy": 0.6666666666666666,
+            "citation_requirement_confusion": {
+              "required": {
+                "required": 2
+              },
+              "unclear": {
+                "required": 1
+              }
+            },
+            "citation_requirement_exact_count": 2,
+            "claim_count": 3,
+            "individual_evidence_count": 3,
+            "individual_exact_accuracy": 0.6666666666666666,
+            "individual_exact_count": 2,
+            "semantic_confusion": {
+              "needs_review": {
+                "partially_supported": 1
+              },
+              "supported": {
+                "supported": 1
+              },
+              "unsupported": {
+                "unsupported": 1
+              }
+            },
+            "semantic_exact_accuracy": 0.6666666666666666,
+            "semantic_exact_count": 2
+          },
+          "ne->en": {
+            "citation_requirement_accuracy": 0.6666666666666666,
+            "citation_requirement_confusion": {
+              "required": {
+                "required": 2
+              },
+              "unclear": {
+                "required": 1
+              }
+            },
+            "citation_requirement_exact_count": 2,
+            "claim_count": 3,
+            "individual_evidence_count": 3,
+            "individual_exact_accuracy": 0.6666666666666666,
+            "individual_exact_count": 2,
+            "semantic_confusion": {
+              "needs_review": {
+                "partially_supported": 1
+              },
+              "supported": {
+                "supported": 1
+              },
+              "unsupported": {
+                "unsupported": 1
+              }
+            },
+            "semantic_exact_accuracy": 0.6666666666666666,
+            "semantic_exact_count": 2
+          },
+          "ne->ne": {
+            "citation_requirement_accuracy": 0.6666666666666666,
+            "citation_requirement_confusion": {
+              "required": {
+                "required": 2
+              },
+              "unclear": {
+                "required": 1
+              }
+            },
+            "citation_requirement_exact_count": 2,
+            "claim_count": 3,
+            "individual_evidence_count": 3,
+            "individual_exact_accuracy": 0.6666666666666666,
+            "individual_exact_count": 2,
+            "semantic_confusion": {
+              "needs_review": {
+                "partially_supported": 1
+              },
+              "supported": {
+                "supported": 1
+              },
+              "unsupported": {
+                "unsupported": 1
+              }
+            },
+            "semantic_exact_accuracy": 0.6666666666666666,
+            "semantic_exact_count": 2
+          }
+        },
+        "claim_count": 12,
+        "interpretation": "The judge correctly handles clear unsupported hard negatives but is over-decisive on ambiguity: human needs_review cases are mapped to partially_supported and human unclear citation requirements are mapped to required.",
+        "judge_model": "gemini-3.8-flash",
+        "judge_provider": "gemini",
+        "overall": {
+          "citation_requirement_accuracy": 0.6666666666666666,
+          "citation_requirement_confusion": {
+            "required": {
+              "required": 8
+            },
+            "unclear": {
+              "required": 4
+            }
+          },
+          "citation_requirement_exact_count": 8,
+          "claim_count": 12,
+          "individual_evidence_count": 12,
+          "individual_exact_accuracy": 0.6666666666666666,
+          "individual_exact_count": 8,
+          "semantic_confusion": {
+            "needs_review": {
+              "partially_supported": 4
+            },
+            "supported": {
+              "supported": 4
+            },
+            "unsupported": {
+              "unsupported": 4
+            }
+          },
+          "semantic_exact_accuracy": 0.6666666666666666,
+          "semantic_exact_count": 8
+        }
+      },
+      "targeted_ne_en_retrieval": {
+        "benchmark_path": "data/evaluation/retrieval_questions.jsonl",
+        "candidate_depth_diagnostic_ne_en_005": {
+          "controlled_english_bm25_rank": 46,
+          "controlled_english_contextual_dense_rank": 85,
+          "final_top_20_rrf_rank_by_component_depth": {
+            "100": 13,
+            "160": 14,
+            "200": 15,
+            "300": 19,
+            "400": null,
+            "60": null
+          },
+          "notes": "Candidate depth was not monotonically related to final RRF rank. Depth 100 was the shallowest tested component pool that recovered the primary evidence inside the final top 20.",
+          "selected_component_depth": 100
+        },
+        "candidate_generation": {
+          "production": {
+            "bm25": false,
+            "dense_vector": "dense_contextual",
+            "final_candidate_depth": 20,
+            "query": "original_nepali",
+            "target_language": "en"
+          },
+          "translated_hybrid": {
+            "bm25": true,
+            "bm25_component_depth": 100,
+            "dense_component_depth": 100,
+            "dense_vector": "dense_contextual",
+            "final_candidate_depth": 20,
+            "fusion": "reciprocal_rank_fusion",
+            "query": "controlled_english",
+            "rrf_k": 60,
+            "target_language": "en"
+          }
+        },
+        "conclusion": {
+          "main_finding": "For the six-question NE->EN slice, translated English contextual-dense plus BM25 retrieval with depth-100 components recovered all manually verified primary evidence within the final top-20 candidate pool. After reranking both variants with the original Nepali query, translated-hybrid BGE achieved 0.833 Hit@5 and 0.833 Recall@5 versus production BGE at 0.667 and 0.722. At @10 and @20, translated-hybrid BGE achieved 1.000 hit rate and 1.000 recall.",
+          "measured_improvement": true,
+          "production_adoption": false,
+          "reason_not_promoted": "The improved candidate path depends on manually controlled English translations. Automatic translation quality, latency, cost, and full-benchmark regression behavior have not been evaluated.",
+          "remaining_issue": "The translated-hybrid path slightly reduced MRR@5 relative to production BGE, 0.617 versus 0.667, and the persistent GDP case reached reranked rank 6 rather than the final top-5 context."
+        },
+        "document_constraint_diagnostic": {
+          "interpretation": "Constraining retrieval to the manually verified Economic Survey document did not recover the primary evidence within depth 100, so cross-document competition was not the main cause.",
+          "ne_en_005_gold_document_rank_at_100": null,
+          "ne_en_005_production_rank_at_100": null
+        },
+        "evaluation_slice": {
+          "query_language": "ne",
+          "question_count": 6,
+          "question_ids": [
+            "ne_en_001",
+            "ne_en_002",
+            "ne_en_003",
+            "ne_en_004",
+            "ne_en_005",
+            "ne_en_006"
+          ],
+          "target_language": "en"
+        },
+        "experimental_translation": {
+          "notes": "The English counterparts are manually controlled evaluation queries. This benchmark does not implement or validate an automatic production translation component.",
+          "production_ready": false,
+          "type": "manually_controlled_english_counterparts"
+        },
+        "first_stage_metrics": {
+          "10": {
+            "controlled_english": {
+              "hit_rate": 0.833,
+              "mrr": 0.533,
+              "recall": 0.778
+            },
+            "dual_route_rrf": {
+              "hit_rate": 0.833,
+              "mrr": 0.589,
+              "recall": 0.833
+            },
+            "production": {
+              "hit_rate": 0.833,
+              "mrr": 0.533,
+              "recall": 0.722
+            },
+            "translated_hybrid": {
+              "hit_rate": 0.833,
+              "mrr": 0.552,
+              "recall": 0.833
+            }
+          },
+          "20": {
+            "controlled_english": {
+              "hit_rate": 0.833,
+              "mrr": 0.533,
+              "recall": 0.833
+            },
+            "dual_route_rrf": {
+              "hit_rate": 0.833,
+              "mrr": 0.589,
+              "recall": 0.833
+            },
+            "production": {
+              "hit_rate": 0.833,
+              "mrr": 0.533,
+              "recall": 0.778
+            },
+            "translated_hybrid": {
+              "hit_rate": 1.0,
+              "mrr": 0.564,
+              "recall": 1.0
+            }
+          },
+          "5": {
+            "controlled_english": {
+              "hit_rate": 0.833,
+              "mrr": 0.533,
+              "recall": 0.667
+            },
+            "dual_route_rrf": {
+              "hit_rate": 0.833,
+              "mrr": 0.589,
+              "recall": 0.667
+            },
+            "production": {
+              "hit_rate": 0.833,
+              "mrr": 0.533,
+              "recall": 0.667
+            },
+            "translated_hybrid": {
+              "hit_rate": 0.5,
+              "mrr": 0.5,
+              "recall": 0.556
+            }
+          }
+        },
+        "first_stage_primary_ranks": {
+          "ne_en_001": {
+            "controlled_english_dense": 1,
+            "dual_route_rrf": 5,
+            "production": 5,
+            "translated_hybrid": 7
+          },
+          "ne_en_002": {
+            "controlled_english_dense": 2,
+            "dual_route_rrf": 1,
+            "production": 2,
+            "translated_hybrid": 1
+          },
+          "ne_en_003": {
+            "controlled_english_dense": 5,
+            "dual_route_rrf": 3,
+            "production": 2,
+            "translated_hybrid": 6
+          },
+          "ne_en_004": {
+            "controlled_english_dense": 2,
+            "dual_route_rrf": 1,
+            "production": 1,
+            "translated_hybrid": 1
+          },
+          "ne_en_005": {
+            "controlled_english_dense": 85,
+            "dual_route_rrf": null,
+            "production": null,
+            "translated_hybrid": 13
+          },
+          "ne_en_006": {
+            "controlled_english_dense": 1,
+            "dual_route_rrf": 1,
+            "production": 1,
+            "translated_hybrid": 1
+          }
+        },
+        "production_changed": false,
+        "representation_diagnostic_ne_en_005": {
+          "controlled_english_query": {
+            "contextual_dense_rank_within_gold_document_300": 80,
+            "raw_dense_rank_within_gold_document_300": 36
+          },
+          "gold_chunk_pages": "314-315",
+          "interpretation": "The table-heavy GDP chunk is difficult for the current passage representation, especially under the Nepali query. Explicit table structure improved embedding similarity substantially but did not place the Nepali-query representation inside the production top 20.",
+          "nepali_query": {
+            "contextual_dense_rank_within_gold_document_300": null,
+            "raw_dense_rank_within_gold_document_300": 124
+          },
+          "structured_table_representation_estimated_global_raw_dense_rank": {
+            "controlled_english_query": 7,
+            "nepali_query": 29
+          }
+        },
+        "reranked_metrics": {
+          "10": {
+            "production_bge": {
+              "hit_rate": 0.833,
+              "mrr": 0.694,
+              "recall": 0.778
+            },
+            "production_first_stage": {
+              "hit_rate": 0.833,
+              "mrr": 0.533,
+              "recall": 0.722
+            },
+            "translated_bge": {
+              "hit_rate": 1.0,
+              "mrr": 0.644,
+              "recall": 1.0
+            },
+            "translated_first_stage": {
+              "hit_rate": 0.833,
+              "mrr": 0.552,
+              "recall": 0.833
+            }
+          },
+          "20": {
+            "production_bge": {
+              "hit_rate": 0.833,
+              "mrr": 0.694,
+              "recall": 0.778
+            },
+            "production_first_stage": {
+              "hit_rate": 0.833,
+              "mrr": 0.533,
+              "recall": 0.778
+            },
+            "translated_bge": {
+              "hit_rate": 1.0,
+              "mrr": 0.644,
+              "recall": 1.0
+            },
+            "translated_first_stage": {
+              "hit_rate": 1.0,
+              "mrr": 0.564,
+              "recall": 1.0
+            }
+          },
+          "5": {
+            "production_bge": {
+              "hit_rate": 0.667,
+              "mrr": 0.667,
+              "recall": 0.722
+            },
+            "production_first_stage": {
+              "hit_rate": 0.833,
+              "mrr": 0.533,
+              "recall": 0.667
+            },
+            "translated_bge": {
+              "hit_rate": 0.833,
+              "mrr": 0.617,
+              "recall": 0.833
+            },
+            "translated_first_stage": {
+              "hit_rate": 0.5,
+              "mrr": 0.5,
+              "recall": 0.556
+            }
+          }
+        },
+        "reranked_primary_ranks": {
+          "ne_en_001": {
+            "production_bge": 1,
+            "production_first_stage": 5,
+            "translated_bge": 1,
+            "translated_first_stage": 7
+          },
+          "ne_en_002": {
+            "production_bge": 1,
+            "production_first_stage": 2,
+            "translated_bge": 1,
+            "translated_first_stage": 1
+          },
+          "ne_en_003": {
+            "production_bge": 6,
+            "production_first_stage": 2,
+            "translated_bge": 5,
+            "translated_first_stage": 6
+          },
+          "ne_en_004": {
+            "production_bge": 1,
+            "production_first_stage": 1,
+            "translated_bge": 1,
+            "translated_first_stage": 1
+          },
+          "ne_en_005": {
+            "production_bge": null,
+            "production_first_stage": null,
+            "translated_bge": 6,
+            "translated_first_stage": 13
+          },
+          "ne_en_006": {
+            "production_bge": 1,
+            "production_first_stage": 1,
+            "translated_bge": 2,
+            "translated_first_stage": 1
+          }
+        },
+        "run_config_id": "ne-en-targeted-retrieval-v1",
+        "schema_version": 1
+      }
+    },
+    "headline": {
+      "answer_quality_acceptable_answer_rate": 0.8,
+      "answer_quality_at_least_mostly_complete_rate": 0.8,
+      "answer_quality_fully_complete_rate": 0.7,
+      "answer_quality_fully_faithful_rate": 0.9333333333333333,
+      "answer_quality_no_major_factual_error_rate": 1.0,
+      "answer_quality_strong_answer_rate": 0.6666666666666666,
+      "automated_judge_individual_exact_accuracy": 0.9583333333333334,
+      "automated_judge_requirement_accuracy": 1.0,
+      "automated_judge_semantic_exact_accuracy": 0.9791666666666666,
+      "hard_case_judge_individual_exact_accuracy": 0.6666666666666666,
+      "hard_case_judge_requirement_accuracy": 0.6666666666666666,
+      "hard_case_judge_semantic_exact_accuracy": 0.6666666666666666,
+      "human_response_behavior_accuracy": 1.0,
+      "human_semantic_abstention_success_rate": 1.0,
+      "human_semantic_any_support_rate": 1.0,
+      "human_semantic_fully_supported_rate": 0.95,
+      "human_semantic_unsupported_rate": 0.0,
+      "ne_en_experimental_bge_hit_at_10": 1.0,
+      "ne_en_experimental_bge_recall_at_10": 1.0,
+      "ne_en_production_bge_hit_at_10": 0.833,
+      "ne_en_production_bge_recall_at_10": 0.778,
+      "partial_mixed_behavior_accuracy": 1.0,
+      "partial_mixed_response_success_rate": 1.0,
+      "production_rag_selected_primary_hit_rate": 0.8333333333333334,
+      "production_rag_valid_reference_ratio": 1.0,
+      "structural_false_accept_rate": 0.125,
+      "structural_withholding_success_rate": 0.875,
+      "unsafe_substantive_answer_rate": 0.0
+    },
+    "measured_remaining_work": [
+      "Evaluate an automatic translation or cross-lingual reformulation mechanism before considering the measured NE->EN translated-hybrid candidate path for production.",
+      "Investigate table-aware passage representations for table-heavy Economic Survey evidence.",
+      "Improve answer completeness: only 70.0% of the 30 reviewed production answers were fully complete and 80.0% were at least mostly complete.",
+      "Preserve the strong factual-safety result while eliminating the two observed localized factual issues; no reviewed answer contained a major factual error.",
+      "Treat automated-judge ambiguity decisions cautiously because all four needs_review and all four unclear-requirement challenge cases were resolved too aggressively by the judge."
+    ],
+    "production_decision": {
+      "hosted_production_rag_rerun_performed": false,
+      "official_production_benchmark_retained": true,
+      "production_retrieval_changed": false,
+      "reason": "The measured NE->EN retrieval improvement depends on manually controlled English query counterparts. Automatic translation quality, latency, cost, and full-benchmark regression behavior have not yet been evaluated, so the experimental route was not promoted."
+    },
+    "schema_version": 1
+  },
+  "checkpoint_config_id": "production-quality-checkpoint-v3",
+  "cycle_extensions": {
+    "answer_completeness_failure_analysis": {
+      "analysis_config_id": "production-rag-v2-completeness-failure-analysis-v1",
+      "by_failure_cause": {
+        "generation_omission_despite_full_gold_context": 1,
+        "mixed_context_and_generation_omission": 1,
+        "needs_review": 0,
+        "primary_evidence_not_selected": 5,
+        "supporting_evidence_not_selected": 2
+      },
+      "clean_generation_intervention_count": 1,
+      "fully_complete_count": 21,
+      "interpretation": "Seven of nine non-complete production answers are pure retrieval/context-coverage failures, one is mixed context plus generation, and only one cleanly isolates generation behavior. Upstream evidence coverage is therefore the dominant remaining answer-completeness limit.",
+      "non_complete_count": 9,
+      "pure_context_limited_count": 7,
+      "question_count": 30,
+      "retrieval_or_context_candidate_count": 8
+    },
+    "answer_completeness_prompt": {
+      "baseline": {
+        "acceptable_answer_count": 24,
+        "acceptable_answer_rate": 0.8,
+        "at_least_mostly_complete_rate": 0.8,
+        "complete_count": 21,
+        "completion_rate": 1.0,
+        "fully_complete_rate": 0.7,
+        "fully_faithful_count": 28,
+        "fully_faithful_rate": 0.9333333333333333,
+        "incomplete_count": 6,
+        "incomplete_rate": 0.2,
+        "major_factual_issue_count": 0,
+        "major_factual_issue_rate": 0.0,
+        "minor_factual_issue_count": 2,
+        "mostly_complete_count": 3,
+        "needs_review_count": 0,
+        "no_major_factual_error_rate": 1.0,
+        "question_count": 30,
+        "reviewed_count": 30,
+        "scorable_rate": 1.0,
+        "scored_count": 30,
+        "strong_answer_count": 20,
+        "strong_answer_rate": 0.6666666666666666
+      },
+      "by_language_pair": {
+        "en->en": {
+          "baseline": {
+            "acceptable_answer_count": 8,
+            "acceptable_answer_rate": 0.6666666666666666,
+            "at_least_mostly_complete_rate": 0.6666666666666666,
+            "complete_count": 8,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 0.6666666666666666,
+            "fully_faithful_count": 11,
+            "fully_faithful_rate": 0.9166666666666666,
+            "incomplete_count": 4,
+            "incomplete_rate": 0.3333333333333333,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 1,
+            "mostly_complete_count": 0,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 12,
+            "reviewed_count": 12,
+            "scorable_rate": 1.0,
+            "scored_count": 12,
+            "strong_answer_count": 8,
+            "strong_answer_rate": 0.6666666666666666
+          },
+          "candidate": {
+            "acceptable_answer_count": 9,
+            "acceptable_answer_rate": 0.75,
+            "at_least_mostly_complete_rate": 0.75,
+            "complete_count": 9,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 0.75,
+            "fully_faithful_count": 12,
+            "fully_faithful_rate": 1.0,
+            "incomplete_count": 3,
+            "incomplete_rate": 0.25,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 0,
+            "mostly_complete_count": 0,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 12,
+            "reviewed_count": 12,
+            "scorable_rate": 1.0,
+            "scored_count": 12,
+            "strong_answer_count": 9,
+            "strong_answer_rate": 0.75
+          },
+          "fully_complete_delta": 0.08333333333333337,
+          "fully_faithful_delta": 0.08333333333333337
+        },
+        "en->ne": {
+          "baseline": {
+            "acceptable_answer_count": 5,
+            "acceptable_answer_rate": 0.8333333333333334,
+            "at_least_mostly_complete_rate": 0.8333333333333334,
+            "complete_count": 4,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 0.6666666666666666,
+            "fully_faithful_count": 6,
+            "fully_faithful_rate": 1.0,
+            "incomplete_count": 1,
+            "incomplete_rate": 0.16666666666666666,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 0,
+            "mostly_complete_count": 1,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 6,
+            "reviewed_count": 6,
+            "scorable_rate": 1.0,
+            "scored_count": 6,
+            "strong_answer_count": 4,
+            "strong_answer_rate": 0.6666666666666666
+          },
+          "candidate": {
+            "acceptable_answer_count": 5,
+            "acceptable_answer_rate": 0.8333333333333334,
+            "at_least_mostly_complete_rate": 0.8333333333333334,
+            "complete_count": 4,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 0.6666666666666666,
+            "fully_faithful_count": 5,
+            "fully_faithful_rate": 0.8333333333333334,
+            "incomplete_count": 1,
+            "incomplete_rate": 0.16666666666666666,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 1,
+            "mostly_complete_count": 1,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 6,
+            "reviewed_count": 6,
+            "scorable_rate": 1.0,
+            "scored_count": 6,
+            "strong_answer_count": 4,
+            "strong_answer_rate": 0.6666666666666666
+          },
+          "fully_complete_delta": 0.0,
+          "fully_faithful_delta": -0.16666666666666663
+        },
+        "ne->en": {
+          "baseline": {
+            "acceptable_answer_count": 5,
+            "acceptable_answer_rate": 0.8333333333333334,
+            "at_least_mostly_complete_rate": 0.8333333333333334,
+            "complete_count": 3,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 0.5,
+            "fully_faithful_count": 6,
+            "fully_faithful_rate": 1.0,
+            "incomplete_count": 1,
+            "incomplete_rate": 0.16666666666666666,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 0,
+            "mostly_complete_count": 2,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 6,
+            "reviewed_count": 6,
+            "scorable_rate": 1.0,
+            "scored_count": 6,
+            "strong_answer_count": 3,
+            "strong_answer_rate": 0.5
+          },
+          "candidate": {
+            "acceptable_answer_count": 5,
+            "acceptable_answer_rate": 0.8333333333333334,
+            "at_least_mostly_complete_rate": 0.8333333333333334,
+            "complete_count": 3,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 0.5,
+            "fully_faithful_count": 6,
+            "fully_faithful_rate": 1.0,
+            "incomplete_count": 1,
+            "incomplete_rate": 0.16666666666666666,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 0,
+            "mostly_complete_count": 2,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 6,
+            "reviewed_count": 6,
+            "scorable_rate": 1.0,
+            "scored_count": 6,
+            "strong_answer_count": 3,
+            "strong_answer_rate": 0.5
+          },
+          "fully_complete_delta": 0.0,
+          "fully_faithful_delta": 0.0
+        },
+        "ne->ne": {
+          "baseline": {
+            "acceptable_answer_count": 6,
+            "acceptable_answer_rate": 1.0,
+            "at_least_mostly_complete_rate": 1.0,
+            "complete_count": 6,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 1.0,
+            "fully_faithful_count": 5,
+            "fully_faithful_rate": 0.8333333333333334,
+            "incomplete_count": 0,
+            "incomplete_rate": 0.0,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 1,
+            "mostly_complete_count": 0,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 6,
+            "reviewed_count": 6,
+            "scorable_rate": 1.0,
+            "scored_count": 6,
+            "strong_answer_count": 5,
+            "strong_answer_rate": 0.8333333333333334
+          },
+          "candidate": {
+            "acceptable_answer_count": 6,
+            "acceptable_answer_rate": 1.0,
+            "at_least_mostly_complete_rate": 1.0,
+            "complete_count": 6,
+            "completion_rate": 1.0,
+            "fully_complete_rate": 1.0,
+            "fully_faithful_count": 5,
+            "fully_faithful_rate": 0.8333333333333334,
+            "incomplete_count": 0,
+            "incomplete_rate": 0.0,
+            "major_factual_issue_count": 0,
+            "major_factual_issue_rate": 0.0,
+            "minor_factual_issue_count": 1,
+            "mostly_complete_count": 0,
+            "needs_review_count": 0,
+            "no_major_factual_error_rate": 1.0,
+            "question_count": 6,
+            "reviewed_count": 6,
+            "scorable_rate": 1.0,
+            "scored_count": 6,
+            "strong_answer_count": 5,
+            "strong_answer_rate": 0.8333333333333334
+          },
+          "fully_complete_delta": 0.0,
+          "fully_faithful_delta": 0.0
+        }
+      },
+      "candidate": {
+        "acceptable_answer_count": 25,
+        "acceptable_answer_rate": 0.8333333333333334,
+        "at_least_mostly_complete_rate": 0.8333333333333334,
+        "complete_count": 22,
+        "completion_rate": 1.0,
+        "fully_complete_rate": 0.7333333333333333,
+        "fully_faithful_count": 28,
+        "fully_faithful_rate": 0.9333333333333333,
+        "incomplete_count": 5,
+        "incomplete_rate": 0.16666666666666666,
+        "major_factual_issue_count": 0,
+        "major_factual_issue_rate": 0.0,
+        "minor_factual_issue_count": 2,
+        "mostly_complete_count": 3,
+        "needs_review_count": 0,
+        "no_major_factual_error_rate": 1.0,
+        "question_count": 30,
+        "reviewed_count": 30,
+        "scorable_rate": 1.0,
+        "scored_count": 30,
+        "strong_answer_count": 21,
+        "strong_answer_rate": 0.7
+      },
+      "delta": {
+        "acceptable_answer_rate": 0.033333333333333326,
+        "at_least_mostly_complete_rate": 0.033333333333333326,
+        "fully_complete_rate": 0.033333333333333326,
+        "fully_faithful_rate": 0.0,
+        "no_major_factual_error_rate": 0.0,
+        "strong_answer_rate": 0.033333333333333326
+      },
+      "interpretation": "The completeness prompt improved fully complete, at-least-mostly-complete, strong, and acceptable answer rates by one question out of 30 (+0.033). Overall fully-faithful performance remained 0.933 and the no-major-error rate remained 1.000, but the en->ne fully-faithful slice declined from 1.000 to 0.833. The measured gain is too small and uneven to justify production promotion.",
+      "production_changed": false,
+      "question_count": 30,
+      "review_config_id": "production-rag-v2-completeness-prompt-full-review-v1"
+    },
+    "automatic_ne_en_translation": {
+      "bge_at_10": {
+        "automatic_translation": {
+          "hit_rate": 0.8333333333333334,
+          "mrr": 0.6166666666666667,
+          "recall": 0.8333333333333334
+        },
+        "manual_control": {
+          "hit_rate": 1.0,
+          "mrr": 0.644,
+          "recall": 1.0
+        },
+        "production": {
+          "hit_rate": 0.833,
+          "mrr": 0.694,
+          "recall": 0.778
+        }
+      },
+      "interpretation": "Automatic translation did not reproduce the controlled manual-query gain. At BGE @10 it matched the production hit rate while improving recall only modestly, and the key ne_en_005 GDP passage remained absent from the final candidate pool. The route was therefore not promoted.",
+      "ne_en_005": {
+        "automatic_bge_rank": null,
+        "automatic_dense_rank": 88,
+        "manual_bge_rank": 6,
+        "production_bge_rank": null
+      },
+      "production_changed": false,
+      "question_count": 6,
+      "run_config_id": "ne-en-automatic-translation-retrieval-v1"
+    },
+    "table_aware_passage_representation": {
+      "english_corpus_point_count": 1643,
+      "interpretation": "The table-aware overlay increased broad recall at @20 and substantially improved the English SEE table case, but overall MRR fell and the critical cross-language GDP case ne_en_005 regressed from contextual rank 840 to rank 936. No representation or Qdrant change was promoted.",
+      "metrics_at_20": {
+        "contextual": {
+          "hit_rate": 0.4,
+          "mrr": 0.13333333333333333,
+          "recall": 0.25
+        },
+        "table_aware_overlay": {
+          "hit_rate": 0.6,
+          "mrr": 0.08038461538461539,
+          "recall": 0.45
+        }
+      },
+      "primary_ranks": {
+        "en_en_005": {
+          "contextual": 38,
+          "table_aware_overlay": 13
+        },
+        "en_en_011": {
+          "contextual": 85,
+          "table_aware_overlay": 70
+        },
+        "ne_en_005": {
+          "contextual": 840,
+          "table_aware_overlay": 936
+        }
+      },
+      "production_changed": false,
+      "question_count": 5,
+      "run_config_id": "table-aware-economic-survey-overlay-v1",
+      "table_like_point_count": 204,
+      "target_document_point_count": 1204
+    }
+  },
+  "headline": {
+    "automatic_translation_bge_hit_at_10": 0.8333333333333334,
+    "automatic_translation_bge_recall_at_10": 0.8333333333333334,
+    "baseline_at_least_mostly_complete_rate": 0.8,
+    "baseline_fully_complete_rate": 0.7,
+    "baseline_fully_faithful_rate": 0.9333333333333333,
+    "baseline_no_major_factual_error_rate": 1.0,
+    "candidate_at_least_mostly_complete_rate": 0.8333333333333334,
+    "candidate_fully_complete_rate": 0.7333333333333333,
+    "candidate_fully_faithful_rate": 0.9333333333333333,
+    "candidate_no_major_factual_error_rate": 1.0,
+    "manual_control_bge_hit_at_10": 1.0,
+    "manual_control_bge_recall_at_10": 1.0,
+    "non_complete_production_answer_count": 9,
+    "pure_context_limited_answer_count": 7,
+    "table_contextual_hit_at_20": 0.4,
+    "table_contextual_mrr_at_20": 0.13333333333333333,
+    "table_contextual_recall_at_20": 0.25,
+    "table_overlay_hit_at_20": 0.6,
+    "table_overlay_mrr_at_20": 0.08038461538461539,
+    "table_overlay_recall_at_20": 0.45
+  },
+  "measured_remaining_work": [
+    "Improve retrieval/context coverage for the remaining incomplete answers: seven of nine non-complete production answers are pure context-coverage failures and one is mixed.",
+    "Preserve the official production prompt until a broader prompt intervention demonstrates a larger completeness gain without language-slice fidelity regression.",
+    "Build the application/API layer around the currently retained production RAG pipeline.",
+    "Add application-level observability, error handling, health checks, configuration, and end-to-end tests.",
+    "Expand the official government-document corpus after the application path is stable, then rerun retrieval and answer-quality evaluation."
+  ],
+  "next_phase": {
+    "reason": "The core RAG architecture now has retrieval, generation, citation, insufficient-evidence, cross-language, hard-case, and human answer-quality evaluation coverage. Further retrieval research can continue later, but the measured results support moving the evaluated production stack into an application/API layer without promoting the current experimental variants.",
+    "recommended": "application_api_readiness"
+  },
+  "production_decision": {
+    "automatic_translation_promoted": false,
+    "completeness_prompt_promoted": false,
+    "hosted_production_rag_rerun_performed": false,
+    "official_production_benchmark_retained": true,
+    "production_prompt_changed": false,
+    "production_retrieval_changed": false,
+    "qdrant_reindexed": false,
+    "reason": "None of the three measured interventions demonstrated a sufficiently robust production improvement. Automatic NE->EN translation did not recover the key GDP retrieval failure; the table-aware overlay improved recall for selected English table queries but reduced MRR and regressed the cross-language GDP case; and the completeness prompt improved overall completeness by only one answer out of 30 while producing an uneven language-slice fidelity result. The existing production retrieval and prompt are therefore retained.",
+    "table_aware_representation_promoted": false
+  },
+  "schema_version": 1
+}
