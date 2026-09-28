@@ -1,6 +1,12 @@
 """Create and configure the Qdrant collection used by NepalGov AI retrieval."""
 
-from qdrant_client import QdrantClient
+from __future__ import annotations
+
+import os
+
+from qdrant_client import (
+    QdrantClient,
+)
 from qdrant_client.models import (
     DenseVectorConfig,
     DenseVectorNameConfig,
@@ -13,8 +19,59 @@ from qdrant_client.models import (
 )
 
 
-# Local Qdrant instance started through Docker Compose.
-QDRANT_URL = "http://localhost:6333"
+QDRANT_URL_ENV = (
+    "QDRANT_URL"
+)
+
+QDRANT_API_KEY_ENV = (
+    "QDRANT_API_KEY"
+)
+
+DEFAULT_QDRANT_URL = (
+    "http://localhost:6333"
+)
+
+
+def resolve_qdrant_url(
+    value: str | None = None,
+) -> str:
+    """Resolve the Qdrant service URL for local or deployed environments.
+
+    An explicit value takes precedence over the environment.
+
+    When neither contains usable text, the existing local-development default
+    is retained.
+    """
+
+    candidate = (
+        value
+        if value is not None
+        else os.getenv(
+            QDRANT_URL_ENV
+        )
+    )
+
+    if (
+        candidate is None
+        or not candidate.strip()
+    ):
+        return (
+            DEFAULT_QDRANT_URL
+        )
+
+    return (
+        candidate
+        .strip()
+        .rstrip("/")
+    )
+
+
+# Preserve the historical module-level name for older scripts that import it.
+# New application code should prefer create_client(), which resolves the
+# environment when the client is constructed.
+QDRANT_URL = (
+    resolve_qdrant_url()
+)
 
 # Stable collection name shared by ingestion and retrieval code.
 COLLECTION_NAME = "nepal_gov_documents"
@@ -26,11 +83,9 @@ DENSE_VECTOR_SIZE = 1024
 # Existing raw child-chunk embedding used by the production baseline.
 DENSE_VECTOR_NAME = "dense"
 
-# Experimental metadata-enriched dense representation.
+# Production metadata-contextualized dense representation.
 #
-# Keeping this separate from `dense` preserves the existing baseline so we can
-# run a controlled raw-vs-contextual retrieval evaluation before promoting the
-# contextual representation into production.
+# Raw dense remains stored for controlled baselines and diagnostics.
 CONTEXTUAL_DENSE_VECTOR_NAME = "dense_contextual"
 
 # Named sparse vector used for BM25-style lexical retrieval.
@@ -47,11 +102,60 @@ KEYWORD_PAYLOAD_FIELDS = (
 )
 
 
-def create_client() -> QdrantClient:
-    """Create a client connected to the local Qdrant service."""
+def create_client(
+    url: str | None = None,
+    api_key: str | None = None,
+) -> QdrantClient:
+    """Create a Qdrant client from explicit or environment configuration.
+
+    Local development requires only the default URL.
+
+    Remote deployments may optionally provide QDRANT_API_KEY without changing
+    application code.
+    """
+
+    resolved_url = (
+        resolve_qdrant_url(
+            url
+        )
+    )
+
+    resolved_api_key = (
+        api_key
+        if api_key is not None
+        else os.getenv(
+            QDRANT_API_KEY_ENV
+        )
+    )
+
+    clean_api_key = (
+        resolved_api_key.strip()
+        if (
+            isinstance(
+                resolved_api_key,
+                str,
+            )
+            and resolved_api_key.strip()
+        )
+        else None
+    )
+
+    client_kwargs = {
+        "url": resolved_url,
+    }
+
+    if (
+        clean_api_key
+        is not None
+    ):
+        client_kwargs[
+            "api_key"
+        ] = (
+            clean_api_key
+        )
 
     return QdrantClient(
-        url=QDRANT_URL
+        **client_kwargs
     )
 
 
@@ -237,28 +341,38 @@ def ensure_collection(
 
     print(
         "Payload indexes ensured for: "
-        + ", ".join(KEYWORD_PAYLOAD_FIELDS)
+        + ", ".join(
+            KEYWORD_PAYLOAD_FIELDS
+        )
     )
 
 
 def main() -> None:
     """Validate connectivity and ensure the complete Qdrant schema exists."""
 
-    client = create_client()
-
-    # Listing collections gives us an explicit connectivity check before any
-    # schema mutation is attempted.
-    collections = client.get_collections()
-
-    print(
-        f"Connected to Qdrant. "
-        f"Existing collections: "
-        f"{len(collections.collections)}"
+    client = (
+        create_client()
     )
 
-    ensure_collection(
-        client
-    )
+    try:
+        # Listing collections gives us an explicit connectivity check before
+        # any schema mutation is attempted.
+        collections = (
+            client.get_collections()
+        )
+
+        print(
+            f"Connected to Qdrant. "
+            f"Existing collections: "
+            f"{len(collections.collections)}"
+        )
+
+        ensure_collection(
+            client
+        )
+
+    finally:
+        client.close()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,7 @@
+certifi
+qdrant-client[fastembed]==1.19.0
+huggingface-hub==1.31.0
+httpx==0.28.1
+google-genai==2.24.0
+fastapi==0.116.1
+uvicorn==0.35.0

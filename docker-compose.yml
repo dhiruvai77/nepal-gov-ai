@@ -3,7 +3,7 @@ services:
     # Pin the Qdrant version verified in local development.
     image: qdrant/qdrant:v1.19.1
 
-    # Give the container a stable, recognizable name for local development.
+    # Preserve the existing local-development container identity.
     container_name: nepal-gov-qdrant
 
     ports:
@@ -14,12 +14,54 @@ services:
       - "6334:6334"
 
     volumes:
-      # Persist vector data across container restarts.
+      # Preserve the indexed corpus across container restarts.
       - qdrant_storage:/qdrant/storage
 
-    # Restart automatically with Docker Desktop.
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    environment:
+      # Fail Compose configuration early when required hosted-provider
+      # credentials are absent. Values are read from the caller environment
+      # and are never baked into the image.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY must be set}
+      HF_TOKEN: ${HF_TOKEN:?HF_TOKEN must be set}
+      HF_RERANKER_ENDPOINT_URL: ${HF_RERANKER_ENDPOINT_URL:?HF_RERANKER_ENDPOINT_URL must be set}
+
+      # Containers communicate through the Compose service name rather than
+      # localhost.
+      QDRANT_URL: http://qdrant:6333
+
+      # Optional; the bundled local Qdrant service does not require a key.
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+
+      PORT: "8000"
+
+    ports:
+      - "${APP_PORT:-8000}:8000"
+
+    depends_on:
+      - qdrant
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5).read()",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
     restart: unless-stopped
 
 volumes:
-  # Docker-managed persistent storage.
+  # Keep the existing Docker-managed vector database storage.
   qdrant_storage:

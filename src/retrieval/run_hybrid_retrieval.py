@@ -7,7 +7,9 @@ For cross-lingual retrieval, BM25 is skipped because lexical overlap is not
 reliable when the query language differs from the target document language.
 """
 
-from qdrant_client import QdrantClient
+from qdrant_client import (
+    QdrantClient,
+)
 
 from src.embeddings.base import (
     EmbeddingService,
@@ -17,7 +19,7 @@ from src.embeddings.hf_e5_service import (
 )
 from src.indexing.qdrant_setup import (
     CONTEXTUAL_DENSE_VECTOR_NAME,
-    QDRANT_URL,
+    create_client,
 )
 from src.retrieval.dense_retriever import (
     DenseRetriever,
@@ -85,7 +87,10 @@ def run_hybrid_retrieval(
     language from the query, the function uses contextual multilingual dense
     retrieval only because BM25 depends on lexical overlap.
 
-    Dependencies can be injected by tests or future FastAPI/Streamlit layers.
+    Dependencies can be injected by tests or application layers.
+
+    When this function creates its own Qdrant client, the client is closed
+    before returning. Injected clients remain owned by their caller.
     """
 
     # Use the same hosted E5 provider as ingestion so query and document vectors
@@ -96,61 +101,102 @@ def run_hybrid_retrieval(
         else HuggingFaceE5EmbeddingService()
     )
 
+    owns_client = (
+        client is None
+    )
+
     active_client = (
         client
         if client is not None
-        else QdrantClient(
-            url=QDRANT_URL
-        )
+        else create_client()
     )
 
-    # The contextual representation is now the production semantic retrieval
-    # vector. Raw dense remains stored for baselines and diagnostics.
-    dense_retriever = DenseRetriever(
-        client=active_client,
-        embedding_service=active_embedding_service,
-        vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
-    )
-
-    query_language = detect_query_language(
-        query
-    )
-
-    target_language = (
-        filters.get("language")
-        if filters
-        else None
-    )
-
-    # BM25 is a lexical retriever. When the query language and requested corpus
-    # language differ, sparse matches can be dominated by accidental token
-    # overlap. Contextual multilingual E5 handles this cross-lingual route.
-    if (
-        target_language is not None
-        and target_language != query_language
-    ):
-        return dense_retriever.retrieve(
-            query=query,
-            top_k=top_k,
-            filters=filters,
+    try:
+        # The contextual representation is the production semantic retrieval
+        # vector. Raw dense remains stored for baselines and diagnostics.
+        dense_retriever = DenseRetriever(
+            client=active_client,
+            embedding_service=active_embedding_service,
+            vector_name=CONTEXTUAL_DENSE_VECTOR_NAME,
         )
 
-    sparse_retriever = SparseRetriever(
-        client=active_client,
-    )
+        query_language = (
+            detect_query_language(
+                query
+            )
+        )
 
-    hybrid_retriever = HybridRetriever(
-        dense_retriever=dense_retriever,
-        sparse_retriever=sparse_retriever,
-        rrf_k=rrf_k,
-        candidate_multiplier=candidate_multiplier,
-    )
+        target_language = (
+            filters.get(
+                "language"
+            )
+            if filters
+            else None
+        )
 
-    return hybrid_retriever.retrieve(
-        query=query,
-        top_k=top_k,
-        filters=filters,
-    )
+        # BM25 is a lexical retriever. When the query language and requested
+        # corpus language differ, sparse matches can be dominated by accidental
+        # token overlap. Contextual multilingual E5 handles this route.
+        if (
+            target_language is not None
+            and target_language
+            != query_language
+        ):
+            return (
+                dense_retriever.retrieve(
+                    query=query,
+                    top_k=top_k,
+                    filters=filters,
+                )
+            )
+
+        sparse_retriever = (
+            SparseRetriever(
+                client=active_client,
+            )
+        )
+
+        hybrid_retriever = (
+            HybridRetriever(
+                dense_retriever=(
+                    dense_retriever
+                ),
+                sparse_retriever=(
+                    sparse_retriever
+                ),
+                rrf_k=rrf_k,
+                candidate_multiplier=(
+                    candidate_multiplier
+                ),
+            )
+        )
+
+        return (
+            hybrid_retriever.retrieve(
+                query=query,
+                top_k=top_k,
+                filters=filters,
+            )
+        )
+
+    finally:
+        if owns_client:
+            close_method = getattr(
+                active_client,
+                "close",
+                None,
+            )
+
+            if callable(
+                close_method
+            ):
+                try:
+                    close_method()
+
+                except Exception:
+                    # Retrieval results or the original retrieval exception
+                    # should not be replaced by a cleanup-only failure.
+                    pass
 
 
 def main() -> None:
@@ -160,8 +206,10 @@ def main() -> None:
         "Enter a Nepal government question: "
     ).strip()
 
-    results = run_hybrid_retrieval(
-        query=query,
+    results = (
+        run_hybrid_retrieval(
+            query=query,
+        )
     )
 
     print_results(
