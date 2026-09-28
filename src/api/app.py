@@ -1,19 +1,25 @@
 """FastAPI application boundary for the NepalGov AI production RAG pipeline.
 
-The API layer intentionally delegates all retrieval, context selection,
-generation, citation processing, and evidence guarding to the existing
-production RAG pipeline.
+The API delegates retrieval, context selection, generation, citation
+processing, and evidence guarding to the existing production RAG pipeline.
+
+Application responsibilities are limited to:
+
+- request validation,
+- lifecycle management,
+- structured source serialization,
+- request observability,
+- dependency readiness,
+- stable HTTP error behavior.
 
 This module does not alter production RAG behavior.
-
-The production pipeline is constructed during application startup rather than
-module import. Tests can inject a deterministic pipeline factory without
-loading hosted generation providers or retrieval infrastructure.
 """
 
 from __future__ import annotations
 
 import logging
+import re
+import time
 from collections.abc import (
     Callable,
 )
@@ -24,11 +30,15 @@ from typing import (
     Any,
     Protocol,
 )
+from uuid import (
+    uuid4,
+)
 
 from fastapi import (
     FastAPI,
     HTTPException,
     Request,
+    Response,
 )
 from pydantic import (
     BaseModel,
@@ -36,6 +46,10 @@ from pydantic import (
     field_validator,
 )
 
+from src.api.readiness import (
+    DependencyReadiness,
+    check_production_dependencies,
+)
 from src.rag.pipeline import (
     RAGResult,
     build_production_rag_pipeline,
@@ -58,6 +72,18 @@ SUPPORTED_ANSWER_LANGUAGES = {
     "en",
     "ne",
 }
+
+REQUEST_ID_HEADER = (
+    "X-Request-ID"
+)
+
+PROCESS_TIME_HEADER = (
+    "X-Process-Time-Ms"
+)
+
+REQUEST_ID_PATTERN = re.compile(
+    r"^[A-Za-z0-9._:-]{1,128}$"
+)
 
 
 class AnswerPipeline(
@@ -87,6 +113,11 @@ class AnswerPipeline(
 PipelineFactory = Callable[
     [],
     AnswerPipeline,
+]
+
+ReadinessChecker = Callable[
+    [],
+    DependencyReadiness,
 ]
 
 
@@ -235,16 +266,35 @@ class AnswerRequest(
         )
 
 
+class SourceResponse(
+    BaseModel
+):
+    """Structured canonical metadata for one cited evidence passage."""
+
+    evidence_id: str
+    document_id: str
+    chunk_id: str
+    title: str
+    organization: str
+    language: str
+    page_start: int
+    page_end: int
+    source_url: str
+
+
 class AnswerResponse(
     BaseModel
 ):
     """Stable application response returned by the answer endpoint."""
 
+    request_id: str
     answer_text: str
     accepted: bool
     withheld: bool
     reason: str | None
-    sources: list[str]
+    sources: list[
+        SourceResponse
+    ]
     provider: str | None
     model: str | None
     selected_context_count: int
@@ -253,7 +303,7 @@ class AnswerResponse(
 class HealthResponse(
     BaseModel
 ):
-    """Minimal application readiness response."""
+    """Lightweight application lifecycle health response."""
 
     status: str
     service: str
@@ -261,10 +311,138 @@ class HealthResponse(
     pipeline_ready: bool
 
 
+class ReadinessChecks(
+    BaseModel
+):
+    """Non-secret production dependency status."""
+
+    pipeline_initialized: bool
+    gemini_configured: bool
+    hf_token_configured: bool
+    reranker_endpoint_configured: bool
+    qdrant_reachable: bool
+    qdrant_collection_ready: bool
+
+
+class ReadinessResponse(
+    BaseModel
+):
+    """Production dependency-readiness response."""
+
+    status: str
+    service: str
+    api_version: str
+    checks: ReadinessChecks
+
+
+def _resolve_request_id(
+    supplied_value: str | None,
+) -> str:
+    """Accept a safe caller request ID or generate a new opaque ID."""
+
+    if (
+        isinstance(
+            supplied_value,
+            str,
+        )
+    ):
+        clean_value = (
+            supplied_value.strip()
+        )
+
+        if (
+            REQUEST_ID_PATTERN.fullmatch(
+                clean_value
+            )
+        ):
+            return clean_value
+
+    return uuid4().hex
+
+
+def _pipeline_is_ready(
+    request: Request,
+) -> bool:
+    """Return whether application startup initialized the RAG pipeline."""
+
+    return (
+        getattr(
+            request.app.state,
+            "pipeline",
+            None,
+        )
+        is not None
+    )
+
+
+def _build_structured_sources(
+    result: RAGResult,
+) -> list[
+    SourceResponse
+]:
+    """Serialize only citations validated by the production citation layer."""
+
+    if (
+        not result.accepted
+        or result.citation_result
+        is None
+    ):
+        return []
+
+    sources: list[
+        SourceResponse
+    ] = []
+
+    for citation in (
+        result
+        .citation_result
+        .citations
+    ):
+        evidence = (
+            citation.evidence.result
+        )
+
+        sources.append(
+            SourceResponse(
+                evidence_id=(
+                    citation.evidence_id
+                ),
+                document_id=(
+                    evidence.document_id
+                ),
+                chunk_id=(
+                    evidence.chunk_id
+                ),
+                title=(
+                    evidence.title
+                ),
+                organization=(
+                    evidence.organization
+                ),
+                language=(
+                    evidence.language
+                ),
+                page_start=(
+                    evidence.page_start
+                ),
+                page_end=(
+                    evidence.page_end
+                ),
+                source_url=(
+                    evidence.source_url
+                ),
+            )
+        )
+
+    return sources
+
+
 def _result_to_response(
     result: RAGResult,
+    *,
+    request_id: str,
 ) -> AnswerResponse:
-    """Convert the internal immutable RAG result to the API contract."""
+    """Convert one immutable internal RAG result into the API contract."""
 
     reason = (
         result.reason.value
@@ -274,6 +452,9 @@ def _result_to_response(
     )
 
     return AnswerResponse(
+        request_id=(
+            request_id
+        ),
         answer_text=(
             result.answer_text
         ),
@@ -284,8 +465,10 @@ def _result_to_response(
             result.withheld
         ),
         reason=reason,
-        sources=list(
-            result.sources
+        sources=(
+            _build_structured_sources(
+                result
+            )
         ),
         provider=(
             result.provider
@@ -304,8 +487,11 @@ def create_app(
     pipeline_factory: PipelineFactory = (
         build_production_rag_pipeline
     ),
+    readiness_checker: ReadinessChecker = (
+        check_production_dependencies
+    ),
 ) -> FastAPI:
-    """Create the API with an injectable production-pipeline factory."""
+    """Create the API with injectable production dependencies."""
 
     if not callable(
         pipeline_factory
@@ -314,25 +500,54 @@ def create_app(
             "pipeline_factory must be callable."
         )
 
+    if not callable(
+        readiness_checker
+    ):
+        raise TypeError(
+            "readiness_checker must be callable."
+        )
+
     @asynccontextmanager
     async def lifespan(
         app: FastAPI,
     ):
-        """Construct and release the application pipeline."""
+        """Initialize production resources without killing health endpoints."""
 
-        pipeline = (
-            pipeline_factory()
-        )
+        pipeline: (
+            AnswerPipeline
+            | None
+        ) = None
 
-        app.state.pipeline = (
-            pipeline
-        )
+        app.state.pipeline = None
+
+        try:
+            pipeline = (
+                pipeline_factory()
+            )
+
+            app.state.pipeline = (
+                pipeline
+            )
+
+        except Exception:
+            # Starting the HTTP process while marking it not-ready provides
+            # useful diagnostics to orchestrators instead of making both
+            # liveness and readiness disappear on configuration failures.
+            LOGGER.exception(
+                "Production RAG pipeline initialization failed."
+            )
 
         try:
             yield
 
         finally:
-            pipeline.close()
+            if (
+                pipeline
+                is not None
+            ):
+                pipeline.close()
+
+            app.state.pipeline = None
 
     application = FastAPI(
         title="NepalGov AI",
@@ -344,6 +559,92 @@ def create_app(
         lifespan=lifespan,
     )
 
+    @application.middleware(
+        "http"
+    )
+    async def request_observability(
+        request: Request,
+        call_next,
+    ):
+        """Attach request correlation and processing-time metadata."""
+
+        request_id = (
+            _resolve_request_id(
+                request.headers.get(
+                    REQUEST_ID_HEADER
+                )
+            )
+        )
+
+        request.state.request_id = (
+            request_id
+        )
+
+        started_at = (
+            time.perf_counter()
+        )
+
+        try:
+            response = (
+                await call_next(
+                    request
+                )
+            )
+
+        except Exception:
+            elapsed_ms = (
+                (
+                    time.perf_counter()
+                    - started_at
+                )
+                * 1000.0
+            )
+
+            LOGGER.exception(
+                "api_request_failed "
+                "request_id=%s method=%s path=%s "
+                "duration_ms=%.3f",
+                request_id,
+                request.method,
+                request.url.path,
+                elapsed_ms,
+            )
+
+            raise
+
+        elapsed_ms = (
+            (
+                time.perf_counter()
+                - started_at
+            )
+            * 1000.0
+        )
+
+        response.headers[
+            REQUEST_ID_HEADER
+        ] = (
+            request_id
+        )
+
+        response.headers[
+            PROCESS_TIME_HEADER
+        ] = (
+            f"{elapsed_ms:.3f}"
+        )
+
+        LOGGER.info(
+            "api_request "
+            "request_id=%s method=%s path=%s "
+            "status=%s duration_ms=%.3f",
+            request_id,
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed_ms,
+        )
+
+        return response
+
     @application.get(
         "/health",
         response_model=HealthResponse,
@@ -354,15 +655,12 @@ def create_app(
     def health(
         request: Request,
     ) -> HealthResponse:
-        """Report whether the application pipeline is initialized."""
+        """Report application lifecycle and pipeline initialization."""
 
         pipeline_ready = (
-            hasattr(
-                request.app.state,
-                "pipeline",
+            _pipeline_is_ready(
+                request
             )
-            and request.app.state.pipeline
-            is not None
         )
 
         return HealthResponse(
@@ -375,6 +673,72 @@ def create_app(
             api_version=API_VERSION,
             pipeline_ready=(
                 pipeline_ready
+            ),
+        )
+
+    @application.get(
+        "/health/ready",
+        response_model=ReadinessResponse,
+        tags=[
+            "system",
+        ],
+    )
+    def readiness(
+        request: Request,
+        response: Response,
+    ) -> ReadinessResponse:
+        """Check production configuration and Qdrant readiness."""
+
+        dependency_state = (
+            readiness_checker()
+        )
+
+        pipeline_initialized = (
+            _pipeline_is_ready(
+                request
+            )
+        )
+
+        ready = (
+            pipeline_initialized
+            and dependency_state.ready
+        )
+
+        if not ready:
+            response.status_code = 503
+
+        return ReadinessResponse(
+            status=(
+                "ready"
+                if ready
+                else "not_ready"
+            ),
+            service=SERVICE_NAME,
+            api_version=API_VERSION,
+            checks=ReadinessChecks(
+                pipeline_initialized=(
+                    pipeline_initialized
+                ),
+                gemini_configured=(
+                    dependency_state
+                    .gemini_configured
+                ),
+                hf_token_configured=(
+                    dependency_state
+                    .hf_token_configured
+                ),
+                reranker_endpoint_configured=(
+                    dependency_state
+                    .reranker_endpoint_configured
+                ),
+                qdrant_reachable=(
+                    dependency_state
+                    .qdrant_reachable
+                ),
+                qdrant_collection_ready=(
+                    dependency_state
+                    .qdrant_collection_ready
+                ),
             ),
         )
 
@@ -431,7 +795,9 @@ def create_app(
 
         except Exception as exc:
             LOGGER.exception(
-                "Unhandled production RAG request failure."
+                "Unhandled production RAG request failure. "
+                "request_id=%s",
+                request.state.request_id,
             )
 
             raise HTTPException(
@@ -443,7 +809,10 @@ def create_app(
 
         return (
             _result_to_response(
-                result
+                result,
+                request_id=(
+                    request.state.request_id
+                ),
             )
         )
 
