@@ -6,7 +6,9 @@ That keeps the NepalGov AI pipeline usable on Windows systems where local
 PyTorch native libraries cannot be loaded.
 """
 
+import logging
 import os
+import re
 import time
 from collections.abc import Sequence
 from typing import Any
@@ -23,6 +25,8 @@ from src.embeddings.e5_service import (
     QUERY_INSTRUCTION,
 )
 
+
+LOGGER = logging.getLogger(__name__)
 
 HF_TOKEN_ENV = "HF_TOKEN"
 
@@ -43,6 +47,27 @@ RETRYABLE_HTTP_STATUS_CODES = {
     425,  # Too Early
     429,  # Too Many Requests
 }
+
+
+
+
+def _provider_error_summary(exc: BaseException) -> str:
+    """Return a bounded, credential-redacted provider error summary."""
+
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    raw_text = getattr(response, "text", "") or ""
+    # Provider responses should not contain prompts, but bound and redact the
+    # only credential-shaped values that could accidentally be echoed.
+    summary = re.sub(
+        r"(?i)(?:bearer\s+|hf_)[A-Za-z0-9._-]+",
+        "[REDACTED]",
+        raw_text,
+    ).strip()[:300]
+    parts = [f"status={status_code if status_code is not None else 'unknown'}"]
+    if summary:
+        parts.append(f"provider_message={summary!r}")
+    return "; ".join(parts)
 
 
 class HuggingFaceE5EmbeddingService(
@@ -295,11 +320,13 @@ class HuggingFaceE5EmbeddingService(
 
         client = self._get_client()
         last_exception: Exception | None = None
+        attempts_used = 0
 
         for attempt in range(
             1,
             self.max_attempts + 1,
         ):
+            attempts_used = attempt
             try:
                 return client.feature_extraction(
                     text=texts,
@@ -309,6 +336,12 @@ class HuggingFaceE5EmbeddingService(
 
             except Exception as exc:
                 last_exception = exc
+                LOGGER.warning(
+                    "Hosted E5 inference attempt failed: attempt=%d/%d %s",
+                    attempt,
+                    self.max_attempts,
+                    _provider_error_summary(exc),
+                )
 
                 is_retryable = (
                     self._is_retryable_exception(
@@ -335,10 +368,10 @@ class HuggingFaceE5EmbeddingService(
                     delay_seconds
                 )
 
+        summary = _provider_error_summary(last_exception) if last_exception else "status=unknown"
         raise RuntimeError(
             "Hosted E5 embedding request failed "
-            f"after {self.max_attempts if self._is_retryable_exception(last_exception) else 1} "
-            "attempt(s)."
+            f"after {attempts_used} attempt(s); {summary}."
         ) from last_exception
 
     def _embed_batch(

@@ -11,7 +11,9 @@ without changing the retrieval pipeline.
 
 from __future__ import annotations
 
+import logging
 import os
+import re
 import time
 from collections.abc import Sequence
 from typing import Any
@@ -31,6 +33,8 @@ from src.retrieval.dense_retriever import (
 
 MODEL_NAME = "BAAI/bge-reranker-v2-m3"
 
+LOGGER = logging.getLogger(__name__)
+
 HF_TOKEN_ENV = "HF_TOKEN"
 HF_RERANKER_ENDPOINT_ENV = (
     "HF_RERANKER_ENDPOINT_URL"
@@ -45,6 +49,27 @@ RETRYABLE_HTTP_STATUS_CODES = {
     425,
     429,
 }
+
+
+
+
+def _provider_error_summary(exc: BaseException) -> str:
+    """Return a bounded, credential-redacted provider error summary."""
+
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    raw_text = getattr(response, "text", "") or ""
+    # Provider responses should not contain prompts, but bound and redact the
+    # only credential-shaped values that could accidentally be echoed.
+    summary = re.sub(
+        r"(?i)(?:bearer\s+|hf_)[A-Za-z0-9._-]+",
+        "[REDACTED]",
+        raw_text,
+    ).strip()[:300]
+    parts = [f"status={status_code if status_code is not None else 'unknown'}"]
+    if summary:
+        parts.append(f"provider_message={summary!r}")
+    return "; ".join(parts)
 
 
 class HuggingFaceBGEReranker(
@@ -287,6 +312,12 @@ class HuggingFaceBGEReranker(
 
             except Exception as exc:
                 last_exception = exc
+                LOGGER.warning(
+                    "Hosted BGE reranking attempt failed: attempt=%d/%d %s",
+                    attempt,
+                    self.max_attempts,
+                    _provider_error_summary(exc),
+                )
 
                 if (
                     not self._is_retryable_exception(
@@ -310,9 +341,10 @@ class HuggingFaceBGEReranker(
                     delay_seconds
                 )
 
+        summary = _provider_error_summary(last_exception) if last_exception else "status=unknown"
         raise RuntimeError(
             "Hosted BGE reranker request failed "
-            f"after {attempts_used} attempt(s)."
+            f"after {attempts_used} attempt(s); {summary}."
         ) from last_exception
 
     @staticmethod
