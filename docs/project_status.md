@@ -1,6 +1,6 @@
 # NepalGov AI — Current Project Status
 
-Last updated: 2026-09-28
+Last updated: 2026-10-05
 
 ## Purpose of This Document
 
@@ -48,7 +48,7 @@ V1 domains:
 
 # Current Project State
 
-The full V1 RAG path is implemented and has progressed through evaluation, API, UI, containerization, and cloud-deployment preparation.
+The full V1 RAG path is implemented and has progressed through evaluation, API, UI, containerization, and verified public cloud deployment.
 
 Current major layers:
 
@@ -68,15 +68,17 @@ Current major layers:
 14. static web UI
 15. Docker deployment baseline
 16. Qdrant Cloud migration
-17. Railway deployment preparation
+17. Railway deployment and successful external HTTPS validation
 
 Current production retrieval/generation behavior remains unchanged from the validated production baseline.
 
-Latest pushed repository milestone on `main`:
+Latest confirmed pushed commit on `main` before this checkpoint update:
 
 ```text
-4a92204 — Add container deployment baseline
+d869d65 — Update deployment progress checkpoint
 ```
+
+The user confirmed a clean working tree and `HEAD -> main, origin/main` at this commit on 2026-10-05. The commit containing this updated checkpoint has not yet been created or pushed.
 
 Latest validated full local test suite:
 
@@ -88,7 +90,11 @@ Current phase:
 
 **Milestone 8B — Cloud deployment and external production validation**
 
-Milestone 8B is **in progress**, not yet closed.
+Milestone 8B external deployment validation **passed on 2026-10-05**. Final repository review, commit, and push of this checkpoint remain pending before administrative closure.
+
+Public application: https://nepal-gov-ai-production.up.railway.app
+
+The last full-suite result above is retained from Milestone 8A; the suite was not rerun during the configuration-only deployment fixes.
 
 ---
 
@@ -846,7 +852,7 @@ Never commit or expose real values.
 Status:
 
 ```text
-IN PROGRESS
+EXTERNAL VALIDATION PASSED — CHECKPOINT COMMIT/PUSH PENDING
 ```
 
 ## Qdrant Snapshot
@@ -974,26 +980,84 @@ ValueError: GEMINI_API_KEY must be set for Gemini generation.
 
 This was an expected configuration failure, not a Docker build failure.
 
-The user subsequently reported that the Railway build completed after variables were added/applied.
+The Railway service was observed Online. Supplied runtime logs showed successful application startup and Uvicorn listening on port 8080.
 
-**Important:** public deployment validation has not yet been completed in this checkpoint.
+## Public HTTPS Validation — 2026-10-05
 
-Still required before Milestone 8B can be closed:
+Public application:
 
-1. confirm current Railway deployment status is `SUCCESS`
-2. inspect current runtime logs for clean startup
-3. confirm `/health/ready` returns HTTP 200 from Railway
-4. generate/confirm the public Railway HTTPS domain
-5. run public `/health`
-6. run public `/health/ready`
-7. run one public `/v1/answer` production smoke test
-8. confirm the answer uses cloud Qdrant and returns structured sources
-9. optionally inspect Railway resource metrics
-10. decide whether deployment documentation/config code changes are needed
-11. run repository validation if code/docs change
-12. commit and push the completed Milestone 8B
+```text
+https://nepal-gov-ai-production.up.railway.app
+```
 
-Do not declare Milestone 8B complete until the external HTTPS smoke test succeeds.
+Observed checks:
+
+- `GET /health`: HTTP 200, `pipeline_ready = true`.
+- `GET /health/ready`: HTTP 200, `status = ready`; all six checks true.
+- `GET /openapi.json`: HTTP 200; request schema inspected before the smoke test.
+- Supplied Railway access logs showed HTTP 200 for `/`, `/static/styles.css`, and `/static/app.js`. This is not a new visual UI review.
+- User confirmed Qdrant Cloud collection `nepal_gov_documents` still reported 2,276 points after the successful answer test. The vector counts and indexes above were verified at migration time, not re-inspected on this date.
+
+Successful production smoke request:
+
+```json
+{
+  "query": "What rights relating to education are guaranteed by Article 31 of the Constitution of Nepal?",
+  "answer_language": "en",
+  "filters": {"document_id": "constitution_nepal_current_en"}
+}
+```
+
+Observed response and headers:
+
+```text
+POST /v1/answer = HTTP 200
+request_id = railway-public-smoke-20261005-003
+X-Request-ID = railway-public-smoke-20261005-003
+accepted = true
+withheld = false
+reason = null
+provider = gemini
+model = gemini-3.8-flash
+selected_context_count = 5
+sources_count = 2
+X-Process-Time-Ms = 58824.674
+client_observed_elapsed_seconds = 65.793
+```
+
+The answer covered access to basic education, compulsory/free basic and free secondary education, free higher education for eligible citizens, accessible education, and mother-tongue education. It returned inline E1/E2 citations and structured source metadata:
+
+| Evidence | Document | Chunk | Pages |
+|---|---|---|---|
+| E1 | constitution_nepal_current_en | constitution_nepal_current_en_chunk_00023 | 15–16 |
+| E2 | constitution_nepal_current_en | constitution_nepal_current_en_chunk_00024 | 16 |
+
+Both source objects identified the Constitution of Nepal, Nepal Law Commission, English evidence, and the canonical source URL. This confirms successful execution of one deployed RAG request; it is not a rerun of the 30-question quality benchmark or a new claim-level faithfulness evaluation.
+
+## Deployment Failures Resolved
+
+1. Request `railway-public-smoke-20261005-001` returned HTTP 503. Runtime logs showed HTTP 401 from the hosted E5 embedding service (`Invalid username or password`). The user updated Railway's `HF_TOKEN` and redeployed. Subsequent requests progressed beyond embeddings and retrieval.
+2. Request `railway-public-smoke-20261005-002` returned HTTP 503. Runtime logs showed HTTP 400 from the hosted BGE `/rerank` endpoint. A direct diagnostic using the current Railway token returned: `The endpoint is paused, ask a maintainer to restart it`. The user resumed the endpoint, after which request `003` succeeded.
+3. The existing local Windows terminal's `HF_TOKEN` separately returned HTTP 401. A hidden-input diagnostic with the current Railway token reached the paused endpoint. Persistent local-token synchronization has not yet been confirmed; check it before the next local hosted-service run.
+
+No application code, request payload, retrieval configuration, vectors, or generation prompt was changed to resolve these failures. The uploaded reranker implementation already used TEI's request format with `truncate = true`.
+
+## Operational Findings
+
+- Railway runs the application; the deployed setup uses Qdrant Cloud, hosted Hugging Face services, and Gemini. Local Docker/Qdrant need not run for public requests.
+- Readiness passed even when the HF token was rejected or the reranker was paused. Its configuration checks do not prove hosted inference calls will succeed. A controlled end-to-end smoke test remains necessary for deployment validation.
+- The current reranker exception preserves HTTP status and the cause chain but does not include the provider's response body. Safe, bounded provider-error diagnostics are a follow-up hardening candidate.
+- A resumed reranker must remain available for public answer requests. Endpoint lifecycle and cost/availability policy should be documented during deployment hardening.
+- Server processing was 58.8 seconds for the successful request; client-observed elapsed time was 65.8 seconds. This single measurement does not locate the performance bottleneck.
+
+## Remaining Milestone 8B Closure Work
+
+1. Install this updated checkpoint at `docs/project_status.md` in the local repository.
+2. Review the diff and run `git diff --check`; this update is documentation-only. Run relevant repository-required documentation checks if present. If code changes are introduced, run the required full suite.
+3. Stage only `docs/project_status.md`, inspect the staged diff, commit, and push `main`.
+4. Confirm the final commit is pushed and the working tree is clean. The checkpoint commit hash is not yet known.
+
+External deployment validation is complete. Milestone closure still requires the intended repository update to be committed and pushed. Railway resource metrics were not reviewed in this session.
 
 ---
 
@@ -1037,10 +1101,12 @@ Some individual citations are related but do not independently establish the ass
 
 ## Latency
 
-Observed end-to-end production RAG latency is approximately:
+Observed production RAG latency:
 
 ```text
-53-55 seconds
+Earlier local/container processing: approximately 53–55 seconds
+Public Railway server processing (2026-10-05): 58.825 seconds
+Public client-observed elapsed time: 65.793 seconds
 ```
 
 This is a deployment/performance issue to measure later, not a reason to modify the production retrieval stack without profiling.
@@ -1311,6 +1377,7 @@ b6615d2 — Add FastAPI application layer
 ec26f30 — Harden FastAPI application layer
 6c3d30b — Add NepalGov AI web interface
 4a92204 — Add container deployment baseline
+d869d65 — Update deployment progress checkpoint
 ```
 
 Previous quality/evaluation milestones:
@@ -1413,30 +1480,19 @@ No experimental retrieval/representation/prompt intervention has replaced this b
 
 # Next Action When Work Resumes
 
-Resume Milestone 8B from the Railway deployment.
+Finish the documentation commit/push for Milestone 8B, then proceed to deployment hardening/documentation and portfolio polish/performance profiling.
 
-Do **not** redo the Qdrant snapshot or migration.
+Already verified on 2026-10-05:
 
-Start by checking:
+- Public health/readiness endpoints returned HTTP 200.
+- Public production answer request `railway-public-smoke-20261005-003` returned HTTP 200, an accepted answer, five selected passages, and two structured cited sources.
+- User confirmed 2,276 points in Qdrant Cloud.
+- The Railway HF token was updated and the paused reranker was resumed.
 
-```text
-Railway deployment status
-Railway runtime logs
-/health/ready
-```
+Immediate next steps:
 
-If the service is healthy:
+1. Review and commit/push `docs/project_status.md`; verify clean status and the resulting pushed commit.
+2. Before local hosted-service work, verify that Windows uses the current HF token without displaying its value.
+3. Plan measured hardening: hosted-service availability diagnostics, safe provider-error reporting, endpoint lifecycle documentation, and stage-by-stage latency profiling.
 
-1. generate/confirm the Railway public HTTPS domain
-2. test `/health`
-3. test `/health/ready`
-4. run a public `/v1/answer` request
-5. verify accepted answer, structured sources, request ID, and selected context count
-6. confirm Qdrant Cloud remains at 2,276 points
-7. record any deployment-specific code/docs changes
-8. run required repository checks
-9. commit and push Milestone 8B
-
-After Milestone 8B, proceed to deployment hardening/documentation and then portfolio polish/performance work.
-
-Do not change production retrieval solely to address the current ~53-55 second latency until profiling identifies the bottleneck.
+Preserve the production retrieval and generation baseline. Do not repeat the snapshot migration, OCR, ingestion, or completed hosted benchmarks without a concrete need. Do not alter retrieval solely because the successful public request took about 59 seconds of server processing; profile first.
